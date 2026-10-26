@@ -20,21 +20,46 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# CUSTOM STYLING (Dark Glassmorphism & High-Contrast Navigation)
+# PREMIUM LINEAR / VERCEL THEME & ANIMATIONS (Fixes Header Cutoff & Bad Colors)
 # -----------------------------------------------------------------------------
 st.markdown("""
 <style>
-    /* Global Container Adjustments */
+    /* Fix top header padding so title is NEVER cut off */
     .block-container {
-        padding-top: 1.2rem;
-        padding-bottom: 2rem;
+        padding-top: 3.5rem !important;
+        padding-bottom: 3rem !important;
+        max-width: 1300px;
     }
     
+    /* Make Streamlit top header bar blend seamlessly */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+    }
+
+    /* Pulse Dot Animation for Status Pill */
+    @keyframes pulse-glow {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(0.85); opacity: 0.4; }
+    }
+    .pulse-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #10b981;
+        margin-right: 6px;
+        animation: pulse-glow 2s infinite ease-in-out;
+    }
+
     /* Hero Header */
+    .hero-container {
+        margin-bottom: 1.2rem;
+    }
     .hero-title {
-        font-size: 2.2rem;
+        font-size: 2.4rem;
         font-weight: 800;
-        background: linear-gradient(90deg, #60a5fa, #a78bfa, #f472b6);
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #f8fafc 0%, #cbd5e1 50%, #94a3b8 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.2rem;
@@ -42,84 +67,109 @@ st.markdown("""
     .hero-sub {
         font-size: 0.95rem;
         color: #94a3b8;
-        margin-bottom: 0.8rem;
-    }
-
-    /* Workflow Navigation Banner */
-    .workflow-banner {
-        background: rgba(30, 41, 59, 0.7);
-        border: 1px solid rgba(71, 85, 105, 0.5);
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        font-size: 0.85rem;
-        color: #cbd5e1;
-        margin-bottom: 1.2rem;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-    }
-    .step-badge {
-        background: #3b82f6;
-        color: #ffffff;
-        font-weight: 700;
-        padding: 0.15rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.75rem;
+        flex-wrap: wrap;
+        gap: 0.6rem;
     }
 
-    /* Status Pills */
+    /* Premium Status Pills */
     .status-pill {
         display: inline-flex;
         align-items: center;
-        background-color: rgba(34, 197, 94, 0.12);
-        border: 1px solid rgba(34, 197, 94, 0.3);
-        color: #4ade80;
-        padding: 0.2rem 0.65rem;
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.25);
+        color: #34d399;
+        padding: 0.25rem 0.75rem;
         border-radius: 9999px;
         font-size: 0.8rem;
         font-weight: 600;
-        margin-right: 0.5rem;
     }
     .status-pill-offline {
         display: inline-flex;
         align-items: center;
-        background-color: rgba(96, 165, 250, 0.12);
-        border: 1px solid rgba(96, 165, 250, 0.3);
-        color: #93c5fd;
-        padding: 0.2rem 0.65rem;
+        background: rgba(99, 102, 241, 0.1);
+        border: 1px solid rgba(99, 102, 241, 0.25);
+        color: #a5b4fc;
+        padding: 0.25rem 0.75rem;
         border-radius: 9999px;
         font-size: 0.8rem;
         font-weight: 600;
     }
 
-    /* KPI Metric Cards */
-    .metric-card {
+    /* Workflow Banner */
+    .workflow-banner {
+        background: #0f172a;
+        border: 1px solid #1e293b;
+        border-radius: 10px;
+        padding: 0.6rem 1rem;
+        font-size: 0.85rem;
+        color: #94a3b8;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+    .step-badge {
         background: #1e293b;
         border: 1px solid #334155;
-        border-radius: 10px;
-        padding: 0.9rem 1rem;
-        text-align: center;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-    }
-    .metric-value {
-        font-size: 1.7rem;
+        color: #38bdf8;
         font-weight: 700;
-        color: #f8fafc;
-    }
-    .metric-label {
-        font-size: 0.8rem;
-        color: #94a3b8;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-top: 0.2rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
     }
 
-    /* Grade Badges */
-    .grade-badge-A { color: #4ade80; font-size: 2.1rem; font-weight: 800; }
-    .grade-badge-B { color: #60a5fa; font-size: 2.1rem; font-weight: 800; }
-    .grade-badge-C { color: #facc15; font-size: 2.1rem; font-weight: 800; }
-    .grade-badge-D { color: #fb923c; font-size: 2.1rem; font-weight: 800; }
-    .grade-badge-F { color: #f87171; font-size: 2.1rem; font-weight: 800; }
+    /* Sleek Metric Cards with Hover Animations */
+    .metric-card {
+        background: #0f172a;
+        border: 1px solid #1e293b;
+        border-radius: 12px;
+        padding: 1.1rem 1rem;
+        text-align: center;
+        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-2px);
+        border-color: #38bdf8;
+        box-shadow: 0 8px 24px -4px rgba(56, 189, 248, 0.12);
+    }
+    .metric-value {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #f8fafc;
+        letter-spacing: -0.02em;
+    }
+    .metric-label {
+        font-size: 0.75rem;
+        color: #64748b;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        margin-top: 0.3rem;
+    }
+
+    /* Refined Grade Badges */
+    .grade-badge-A { color: #34d399; font-size: 2.1rem; font-weight: 800; }
+    .grade-badge-B { color: #38bdf8; font-size: 2.1rem; font-weight: 800; }
+    .grade-badge-C { color: #fbbf24; font-size: 2.1rem; font-weight: 800; }
+    .grade-badge-D { color: #f97316; font-size: 2.1rem; font-weight: 800; }
+    .grade-badge-F { color: #f43f5e; font-size: 2.1rem; font-weight: 800; }
+
+    /* Custom Primary Button Styling */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%) !important;
+        border: none !important;
+        color: white !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        padding: 0.5rem 1rem !important;
+        transition: all 0.2s ease !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        box-shadow: 0 4px 16px rgba(79, 70, 229, 0.4) !important;
+        transform: translateY(-1px) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -132,30 +182,30 @@ if "engine" not in st.session_state:
 engine: RepoDoctorEngine = st.session_state["engine"]
 
 # -----------------------------------------------------------------------------
-# HERO HEADER & STATUS PILLS
+# HERO HEADER (Properly spaced, never cut off)
 # -----------------------------------------------------------------------------
-st.markdown('<div class="hero-title">🩺 RepoDoctor</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="hero-sub">'
-    '<span class="status-pill">● Google Gemma 4 Active</span>'
-    '<span class="status-pill-offline">🛡️ 100% Offline & Air-Gapped</span>'
-    ' &nbsp; Autonomous Codebase Health, Security Auditing & PR Engine'
-    '</div>',
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div class="hero-container">
+    <div class="hero-title">🩺 RepoDoctor</div>
+    <div class="hero-sub">
+        <span class="status-pill"><span class="pulse-dot"></span>Google Gemma 4 Active</span>
+        <span class="status-pill-offline">🛡️ 100% Offline & Air-Gapped</span>
+        <span>• Autonomous Codebase Health, Security & Test Engine</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # Workflow Banner
-st.markdown(
-    '<div class="workflow-banner">'
-    '<span class="step-badge">1. SELECT REPO</span> Choose target in sidebar &nbsp;➔&nbsp; '
-    '<span class="step-badge">2. AUDIT</span> Review architecture & CVEs &nbsp;➔&nbsp; '
-    '<span class="step-badge">3. RESOLVE</span> Generate AI patches, tests, or ask Copilot'
-    '</div>',
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div class="workflow-banner">
+    <span class="step-badge">1. TARGET</span> Choose repo in sidebar &nbsp;➔&nbsp;
+    <span class="step-badge">2. AUDIT</span> Review architecture & vulnerabilities &nbsp;➔&nbsp;
+    <span class="step-badge">3. RESOLVE</span> Synthesize tests, patches, or ask Copilot
+</div>
+""", unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# SIDEBAR REPOSITORY SELECTOR (Clean Presets & Custom Input)
+# SIDEBAR REPOSITORY SELECTOR
 # -----------------------------------------------------------------------------
 st.sidebar.markdown("### 📁 Select Repository")
 
@@ -170,35 +220,35 @@ preset_options = {
 }
 
 chosen_preset = st.sidebar.radio(
-    "Quick Select Preset:",
+    "Target Codebase:",
     list(preset_options.keys()),
     index=0
 )
 
 if chosen_preset == "Custom Directory...":
-    target_repo = st.sidebar.text_input("Enter Folder Path:", value=".")
+    target_repo = st.sidebar.text_input("Folder Path:", value=".")
 else:
     target_repo = preset_options[chosen_preset]
-    st.sidebar.caption(f"Path: `{Path(target_repo).name}/`")
+    st.sidebar.caption(f"Inspecting: `{Path(target_repo).name}/`")
 
-st.sidebar.markdown("### 🤖 Reasoning Model")
+st.sidebar.markdown("### 🤖 Reasoning Engine")
 model_choice = st.sidebar.selectbox(
     "Active Model:",
     ["gemma4:e4b", "gemma4:12b", "llama3.1:8b"],
     index=0,
-    help="Gemma 4 e4b generates 16.6 tok/s locally on your GPU."
+    help="Gemma 4 e4b generates 16.6 tok/s directly on your GPU."
 )
 
 st.sidebar.markdown("---")
-if st.sidebar.button("🔄 Re-Scan Repository", type="primary", use_container_width=True):
-    with st.spinner("Executing 3-Gate Diagnostic Suite..."):
+if st.sidebar.button("🔄 Re-Scan Codebase", type="primary", use_container_width=True):
+    with st.spinner("Analyzing repository through 3-Gate engine..."):
         st.session_state["diag"] = engine.get_full_diagnosis(target_repo)
         st.sidebar.success(f"Audit completed in {st.session_state['diag'].get('duration_sec', 0)}s!")
 
 # Load initial state or update if target changed
 if "current_target_repo" not in st.session_state or st.session_state["current_target_repo"] != target_repo:
     st.session_state["current_target_repo"] = target_repo
-    with st.spinner("Running initial repository scan..."):
+    with st.spinner("Initializing repository diagnostic..."):
         st.session_state["diag"] = engine.get_full_diagnosis(target_repo)
 
 diag = st.session_state["diag"]
@@ -218,8 +268,8 @@ with mcol1:
     grade_class = f"grade-badge-{grade[0]}" if grade in {"A+", "A", "B", "C", "D", "F"} else "metric-value"
     st.markdown(f"""
     <div class="metric-card">
-        <div class="{grade_class}">{grade} <span style="font-size: 1rem; color: #94a3b8;">({score}/100)</span></div>
-        <div class="metric-label">Security Score</div>
+        <div class="{grade_class}">{grade} <span style="font-size: 0.95rem; color: #64748b; font-weight: 500;">({score}/100)</span></div>
+        <div class="metric-label">Security Grade</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -241,7 +291,7 @@ with mcol3:
 
 with mcol4:
     secrets_count = security.get("critical_secrets_found", 0)
-    color = "#f87171" if secrets_count > 0 else "#4ade80"
+    color = "#f43f5e" if secrets_count > 0 else "#34d399"
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-value" style="color: {color};">{secrets_count}</div>
@@ -251,7 +301,7 @@ with mcol4:
 
 with mcol5:
     vulns_count = security.get("vulnerabilities_found", 0)
-    color = "#f87171" if vulns_count > 0 else "#4ade80"
+    color = "#f43f5e" if vulns_count > 0 else "#34d399"
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-value" style="color: {color};">{vulns_count}</div>
@@ -266,7 +316,7 @@ st.write("")
 # -----------------------------------------------------------------------------
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Executive & Architecture",
-    "🛡️ DevSecOps & Security Auditor",
+    "🛡️ DevSecOps & Security",
     "🧪 Unit Test Synthesizer",
     "🔍 Semantic Code Search",
     "💬 AI Copilot (Supervisor)"
@@ -277,7 +327,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # -----------------------------------------------------------------------------
 with tab1:
     st.subheader("🗺️ Module Architecture & Dependency Graph")
-    st.caption("Extracted via Python AST import inspection. Visualizes internal module connections.")
+    st.caption("Extracted via AST import inspection. Visualizes internal module connections.")
     
     cycles_count = architecture.get("circular_dependencies_detected", 0)
     if cycles_count > 0:
@@ -299,10 +349,10 @@ with tab1:
         exts = overview.get("file_extensions", {})
         if exts:
             st.bar_chart(exts)
-        st.write(f"**Comment Density:** `{overview.get('comment_density_pct', 0)}%` of lines are documentation/comments.")
+        st.write(f"**Comment Density:** `{overview.get('comment_density_pct', 0)}%` of code lines are documentation/comments.")
 
     with col_table:
-        st.write("**Largest Files by Line Count**")
+        st.write("**Top Largest Files**")
         top_files = overview.get("top_5_largest_files", [])
         if top_files:
             st.dataframe(top_files, use_container_width=True)
@@ -355,13 +405,12 @@ with tab2:
         st.success("✅ Clean Code Audit: Zero dangerous function calls or SQL/Command injection patterns found.")
 
 # -----------------------------------------------------------------------------
-# TAB 3: UNIT TEST SYNTHESIZER (Dynamic File Picker - No Hardcoded Mocks!)
+# TAB 3: UNIT TEST SYNTHESIZER (Dynamic File Picker)
 # -----------------------------------------------------------------------------
 with tab3:
     st.subheader("🧪 Autonomous Pytest Generator & Verification Sandbox")
     st.caption("Select an actual Python file from the repository, have Gemma generate tests, and execute them in a sandbox.")
 
-    # Get all python files in target repo
     py_files = []
     base_p = Path(target_repo)
     if base_p.exists():
@@ -461,7 +510,7 @@ with tab4:
             st.info("No matching snippets found.")
 
 # -----------------------------------------------------------------------------
-# TAB 5: AI COPILOT (SUPERVISOR LOOP)
+# TAB 5: AI COPILOT (SUPERVISOR LOOP - Fixed Bottom-Anchored Input)
 # -----------------------------------------------------------------------------
 with tab5:
     st.subheader("💬 Deep Codebase Q&A & Supervisor Agent")
@@ -469,16 +518,18 @@ with tab5:
 
     st.write("**Quick Inquiries:**")
     qc1, qc2, qc3 = st.columns(3)
-    if qc1.button("🔒 How does Security Scanning Work?", use_container_width=True):
-        st.session_state["pending_prompt"] = "Explain how the security and secret auditing works in this codebase."
-    if qc2.button("🛡️ What are the 3 Security Gates?", use_container_width=True):
-        st.session_state["pending_prompt"] = "What are the 3 Security Gates and how do they prevent unauthorized code execution?"
-    if qc3.button("🗺️ Explain Architecture Dependencies", use_container_width=True):
-        st.session_state["pending_prompt"] = "Summarize the architectural dependencies between modules in this repository."
+    preset_query = None
+    if qc1.button("🔒 Security Architecture", use_container_width=True):
+        preset_query = "Explain how the security and secret auditing works in this codebase."
+    if qc2.button("🛡️ 3-Gate Security Loop", use_container_width=True):
+        preset_query = "What are the 3 Security Gates and how do they prevent unauthorized code execution?"
+    if qc3.button("🗺️ Module Dependencies", use_container_width=True):
+        preset_query = "Summarize the architectural dependencies between modules in this repository."
 
     if "chat_msgs" not in st.session_state:
         st.session_state["chat_msgs"] = []
 
+    # 1. Render all messages in chat history FIRST
     for msg in st.session_state["chat_msgs"]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
@@ -486,15 +537,18 @@ with tab5:
                 with st.expander("🧠 Gemma 4 Reasoning Trace"):
                     st.markdown(msg["thinking"])
 
-    prompt_to_send = st.session_state.pop("pending_prompt", None) or st.chat_input("Ask a question about this repository...")
-    if prompt_to_send:
-        st.session_state["chat_msgs"].append({"role": "user", "content": prompt_to_send})
+    # 2. Render input box AT THE BOTTOM
+    user_input = st.chat_input("Ask a question about this repository...")
+    active_prompt = preset_query or user_input
+
+    if active_prompt:
+        st.session_state["chat_msgs"].append({"role": "user", "content": active_prompt})
         with st.chat_message("user"):
-            st.markdown(prompt_to_send)
+            st.markdown(active_prompt)
 
         with st.chat_message("assistant"):
             with st.spinner("Gemma reasoning and orchestrating diagnostic tools..."):
-                agent_res = engine.chat_with_agent(prompt_to_send, repo_path=target_repo, model=model_choice)
+                agent_res = engine.chat_with_agent(active_prompt, repo_path=target_repo, model=model_choice)
                 ans = agent_res.get("final_response", "Diagnosis complete.")
                 thinking = agent_res.get("thinking_trace", "")
                 
@@ -508,6 +562,7 @@ with tab5:
                     "content": ans,
                     "thinking": thinking
                 })
+        st.rerun()
 
 # -----------------------------------------------------------------------------
 # SIDEBAR REPORT EXPORTER

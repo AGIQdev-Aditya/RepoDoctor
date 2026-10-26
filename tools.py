@@ -1,7 +1,7 @@
 """
-RepoDoctor Deterministic Diagnostic Tools
-Core static analysis, security auditing, dependency extraction,
-semantic code search, and test execution sandbox.
+RepoDoctor Deterministic Diagnostic Tools (Optimized & Extended)
+Core static analysis, security auditing, circular dependency detection,
+embedding-cached semantic search, repo metric profiling, and test execution sandbox.
 """
 
 import os
@@ -10,27 +10,31 @@ import ast
 import sys
 import json
 import time
+import hashlib
 import tempfile
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple, Set
 import numpy as np
 
 # Safe file extensions to analyze
-CODE_EXTENSIONS = {".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css", ".json", ".md", ".sh"}
+CODE_EXTENSIONS = {".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css", ".json", ".md", ".sh", ".yaml", ".yml"}
 IGNORE_DIRS = {".git", "venv", ".venv", "__pycache__", "node_modules", ".pytest_cache", ".idea", ".vscode", "dist", "build"}
 
-# Common Secret Regex Patterns
+# Extended Production Secret Regex Patterns
 SECRET_PATTERNS = [
     ("AWS Access Key", r"(?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}"),
     ("GitHub Personal Access Token", r"(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,255}"),
-    ("OpenAI / Generic API Key", r"sk-[a-zA-Z0-9]{20,64}"),
+    ("OpenAI API Key", r"sk-[a-zA-Z0-9]{20,64}"),
+    ("Google Cloud API Key", r"AIzaSy[A-Za-z0-9_-]{33}"),
+    ("HuggingFace User Access Token", r"hf_[a-zA-Z0-9]{34,40}"),
+    ("Stripe Live Secret Key", r"sk_live_[0-9a-zA-Z]{24}"),
     ("Slack API Token", r"xox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,32}"),
     ("Private Key Header", r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"),
-    ("Database Connection String with Password", r"(?:postgres|mysql|mongodb|redis):\/\/[a-zA-Z0-9_]+:[a-zA-Z0-9_!@#$%^&*]+@[a-zA-Z0-9.-]+"),
+    ("Database URI with Password", r"(?:postgres|mysql|mongodb|redis):\/\/[a-zA-Z0-9_]+:[a-zA-Z0-9_!@#$%^&*]+@[a-zA-Z0-9.-]+"),
 ]
 
-# Dangerous Code Execution Patterns in Python
+# Extended Security & Code Health Vulnerabilities
 VULNERABILITY_PATTERNS = [
     ("Arbitrary Code Execution (eval)", r"\beval\s*\(", "Critical", "Avoid eval(); use safe parsers like ast.literal_eval."),
     ("Arbitrary Code Execution (exec)", r"\bexec\s*\(", "Critical", "Avoid exec(); dynamic execution can lead to remote code execution."),
@@ -38,7 +42,13 @@ VULNERABILITY_PATTERNS = [
     ("OS Command Execution", r"os\.system\s*\(", "High", "Avoid os.system(); use subprocess.run with argument arrays."),
     ("Potential SQL Injection", r"(?:execute|raw)\s*\(\s*f[\"'].*?(?:SELECT|INSERT|UPDATE|DELETE).*?\{", "High", "Use parameterized queries instead of f-string formatting into SQL."),
     ("Insecure Deserialization", r"pickle\.loads?\s*\(", "Medium", "Pickle can execute arbitrary bytecode; use JSON or signed payloads."),
+    ("Weak Cryptographic Hash (MD5/SHA1)", r"hashlib\.(?:md5|sha1)\s*\(", "Medium", "MD5 and SHA-1 are cryptographically broken; use sha256 or bcrypt/argon2."),
+    ("Insecure Temp File Creation", r"tempfile\.mktemp\s*\(", "Medium", "mktemp is vulnerable to race conditions; use NamedTemporaryFile."),
+    ("Namespace Pollution (Wildcard Import)", r"from\s+[a-zA-Z0-9_.]+\s+import\s+\*", "Low", "Wildcard imports pollute global scope and break static analysis."),
 ]
+
+# In-memory Embedding Cache to make subsequent searches instantaneous
+_EMBEDDING_CACHE: Dict[str, Tuple[float, List[float]]] = {}
 
 
 def _safe_resolve_path(repo_path: str, subpath: str = "") -> Path:
@@ -54,10 +64,68 @@ def _safe_resolve_path(repo_path: str, subpath: str = "") -> Path:
     return base
 
 
+def get_repo_overview(repo_path: str, **kwargs) -> Dict[str, Any]:
+    """
+    Computes a high-level architectural overview: language breakdown,
+    lines of code (LOC), comment density, and largest files.
+    """
+    base_dir = _safe_resolve_path(repo_path)
+    ext_counts = {}
+    ext_loc = {}
+    total_loc = 0
+    total_comment_lines = 0
+    file_sizes = []
+
+    for root, dirs, files in os.walk(base_dir):
+        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and not d.startswith(".")]
+        for file in files:
+            ext = os.path.splitext(file)[1].lower()
+            if not ext:
+                ext = "(no extension)"
+            file_path = Path(root) / file
+            
+            ext_counts[ext] = ext_counts.get(ext, 0) + 1
+            if ext in CODE_EXTENSIONS:
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        lines = f.readlines()
+                    loc = len(lines)
+                    total_loc += loc
+                    ext_loc[ext] = ext_loc.get(ext, 0) + loc
+                    
+                    # Count comment lines in python/shell/js
+                    comments = sum(1 for line in lines if line.strip().startswith(("#", "//", "/*", "*")))
+                    total_comment_lines += comments
+                    
+                    file_sizes.append({
+                        "file": file_path.relative_to(base_dir).as_posix(),
+                        "lines": loc,
+                        "bytes": file_path.stat().st_size
+                    })
+                except Exception:
+                    pass
+
+    # Sort largest files
+    file_sizes.sort(key=lambda x: x["lines"], reverse=True)
+    comment_ratio = round((total_comment_lines / max(1, total_loc)) * 100, 1)
+
+    return {
+        "status": "success",
+        "repo_name": base_dir.name,
+        "repo_path": str(base_dir),
+        "total_files": sum(ext_counts.values()),
+        "total_lines_of_code": total_loc,
+        "comment_density_pct": comment_ratio,
+        "file_extensions": ext_counts,
+        "loc_by_extension": ext_loc,
+        "top_5_largest_files": file_sizes[:5]
+    }
+
+
 def scan_security_and_secrets(repo_path: str, **kwargs) -> Dict[str, Any]:
     """
     Scans a repository for hardcoded secrets, API tokens, and dangerous code patterns.
-    Returns a structured security audit payload with a letter grade.
+    Returns a structured security audit payload with letter grade and remediation steps.
     """
     start_time = time.time()
     base_dir = _safe_resolve_path(repo_path)
@@ -68,7 +136,6 @@ def scan_security_and_secrets(repo_path: str, **kwargs) -> Dict[str, Any]:
     total_lines = 0
 
     for root, dirs, files in os.walk(base_dir):
-        # Filter ignored directories in-place
         dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and not d.startswith(".")]
         
         for file in files:
@@ -89,19 +156,21 @@ def scan_security_and_secrets(repo_path: str, **kwargs) -> Dict[str, Any]:
             total_lines += len(lines)
 
             for line_idx, line in enumerate(lines, 1):
+                clean_line = line.strip()
                 # 1. Secret Scanning
                 for secret_name, pattern in SECRET_PATTERNS:
                     if re.search(pattern, line):
-                        # Redact the actual secret match for safe display
+                        # Mask sensitive characters
+                        masked = clean_line[:30] + "... [REDACTED]"
                         findings_secrets.append({
                             "type": secret_name,
                             "file": rel_path,
                             "line": line_idx,
-                            "snippet": line.strip()[:100],
+                            "snippet": masked,
                             "severity": "Critical"
                         })
                 
-                # 2. Vulnerability Scanning (focus on python and script files)
+                # 2. Vulnerability Scanning
                 if ext in {".py", ".sh"}:
                     for vuln_name, pattern, severity, remedy in VULNERABILITY_PATTERNS:
                         if re.search(pattern, line):
@@ -109,14 +178,17 @@ def scan_security_and_secrets(repo_path: str, **kwargs) -> Dict[str, Any]:
                                 "vulnerability": vuln_name,
                                 "file": rel_path,
                                 "line": line_idx,
-                                "snippet": line.strip()[:120],
+                                "snippet": clean_line[:120],
                                 "severity": severity,
                                 "remediation": remedy
                             })
 
-    # Calculate Security Score
-    total_issues = len(findings_secrets) * 25 + len(findings_vulns) * 15
-    score = max(0, 100 - total_issues)
+    # Weighted Scoring Formula
+    penalty = (len(findings_secrets) * 25) + sum(
+        15 if v["severity"] == "Critical" else 10 if v["severity"] == "High" else 5
+        for v in findings_vulns
+    )
+    score = max(0, 100 - penalty)
     if score >= 90:
         grade = "A+" if score == 100 else "A"
     elif score >= 75:
@@ -143,10 +215,36 @@ def scan_security_and_secrets(repo_path: str, **kwargs) -> Dict[str, Any]:
     }
 
 
+def _detect_cycles(graph: Dict[str, Set[str]]) -> List[List[str]]:
+    """Detect circular dependency cycles in module graph using DFS."""
+    visited = {}
+    cycles = []
+
+    def dfs(node, path):
+        visited[node] = 1
+        path.append(node)
+        for neighbor in graph.get(node, set()):
+            if visited.get(neighbor) == 1:
+                idx = path.index(neighbor)
+                cycle = path[idx:] + [neighbor]
+                cycles.append(cycle)
+            elif visited.get(neighbor) == 0:
+                dfs(neighbor, path)
+        path.pop()
+        visited[node] = 2
+
+    for n in list(graph.keys()):
+        visited[n] = 0
+    for n in list(graph.keys()):
+        if visited[n] == 0:
+            dfs(n, [])
+    return cycles
+
+
 def map_architecture_dependencies(repo_path: str, **kwargs) -> Dict[str, Any]:
     """
-    Parses Python AST across all repository files to extract module imports
-    and generates an interactive Mermaid dependency graph.
+    Parses Python AST across all repository files to extract module imports,
+    detects circular dependencies, and generates an interactive Mermaid diagram.
     """
     base_dir = _safe_resolve_path(repo_path)
     python_files = {}
@@ -161,9 +259,9 @@ def map_architecture_dependencies(repo_path: str, **kwargs) -> Dict[str, Any]:
                 python_files[mod_name] = file_path
 
     known_modules = set(python_files.keys())
-    # Also index basenames for simple direct imports
     basename_map = {Path(p).stem: mod for mod, p in python_files.items()}
     
+    graph: Dict[str, Set[str]] = {m: set() for m in known_modules}
     edges = set()
     module_details = []
 
@@ -183,9 +281,7 @@ def map_architecture_dependencies(repo_path: str, **kwargs) -> Dict[str, Any]:
                 if node.module:
                     imported_targets.add(node.module)
 
-        # Match internal project relationships
         for imp in imported_targets:
-            # Check full module match or prefix match
             matched = None
             if imp in known_modules:
                 matched = imp
@@ -199,6 +295,7 @@ def map_architecture_dependencies(repo_path: str, **kwargs) -> Dict[str, Any]:
             
             if matched and matched != mod_name:
                 edges.add((mod_name, matched))
+                graph[mod_name].add(matched)
 
         module_details.append({
             "module": mod_name,
@@ -206,7 +303,10 @@ def map_architecture_dependencies(repo_path: str, **kwargs) -> Dict[str, Any]:
             "imports_count": len(imported_targets)
         })
 
-    # Build Mermaid syntax
+    # Detect Circular Dependencies
+    cycles = _detect_cycles(graph)
+
+    # Build Mermaid syntax with cycle warnings
     clean_id = lambda name: name.replace(".", "_").replace("-", "_")
     mermaid_lines = ["flowchart TD"]
     
@@ -217,12 +317,16 @@ def map_architecture_dependencies(repo_path: str, **kwargs) -> Dict[str, Any]:
             mermaid_lines.append(f'    {clean_id(m)}["{m}.py"]')
     else:
         for src, dst in sorted(edges):
-            mermaid_lines.append(f'    {clean_id(src)}["{src}.py"] --> {clean_id(dst)}["{dst}.py"]')
+            is_in_cycle = any(src in c and dst in c for c in cycles)
+            link = f'    {clean_id(src)}["{src}.py"] --{"circular" if is_in_cycle else ""}--> {clean_id(dst)}["{dst}.py"]'
+            mermaid_lines.append(link)
 
     return {
         "status": "success",
         "total_python_modules": len(python_files),
         "total_dependency_edges": len(edges),
+        "circular_dependencies_detected": len(cycles),
+        "cycles": [" -> ".join(c) for c in cycles[:5]],
         "modules": module_details,
         "mermaid_diagram": "\n".join(mermaid_lines)
     }
@@ -241,15 +345,15 @@ def _cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
 
 def search_codebase(repo_path: str, query: str, top_k: int = 3, **kwargs) -> Dict[str, Any]:
     """
-    Performs semantic vector search across code files using Ollama's nomic-embed-text.
-    Returns the most relevant code chunks with line ranges and similarity scores.
+    Performs semantic vector search across code files using Ollama's nomic-embed-text
+    with in-memory embedding caching for instant repeated queries.
     """
     import ollama
+    global _EMBEDDING_CACHE
     
     base_dir = _safe_resolve_path(repo_path)
     chunks = []
     
-    # 1. Chunk code files into ~40 line blocks
     for root, dirs, files in os.walk(base_dir):
         dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and not d.startswith(".")]
         for file in files:
@@ -261,6 +365,7 @@ def search_codebase(repo_path: str, query: str, top_k: int = 3, **kwargs) -> Dic
             rel_path = file_path.relative_to(base_dir).as_posix()
             
             try:
+                mtime = file_path.stat().st_mtime
                 with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                     lines = f.readlines()
             except Exception:
@@ -275,7 +380,11 @@ def search_codebase(repo_path: str, query: str, top_k: int = 3, **kwargs) -> Dic
                 chunk_text = "".join(chunk_lines).strip()
                 if len(chunk_text) < 20:
                     continue
+                
+                chunk_id = f"{rel_path}:{i+1}:{hashlib.md5(chunk_text.encode()).hexdigest()[:8]}"
                 chunks.append({
+                    "id": chunk_id,
+                    "mtime": mtime,
                     "file": rel_path,
                     "line_start": i + 1,
                     "line_end": min(i + len(chunk_lines), len(lines)),
@@ -285,33 +394,39 @@ def search_codebase(repo_path: str, query: str, top_k: int = 3, **kwargs) -> Dic
     if not chunks:
         return {"status": "success", "query": query, "results": [], "message": "No code content to search."}
 
-    # 2. Embed the search query
+    # Embed search query
     try:
         q_resp = ollama.embeddings(model="nomic-embed-text", prompt=query)
         q_vec = q_resp["embedding"]
     except Exception as e:
         return {"status": "error", "message": f"Failed to generate query embedding: {str(e)}"}
 
-    # 3. Embed top chunks (limit to 30 chunks to maintain speed)
     scored = []
-    eval_chunks = chunks[:35]
+    eval_chunks = chunks[:40]
+    
     for ch in eval_chunks:
-        try:
-            # Contextualize chunk embedding with filename
+        ch_id = ch["id"]
+        # Check cache validity
+        if ch_id in _EMBEDDING_CACHE and _EMBEDDING_CACHE[ch_id][0] == ch["mtime"]:
+            c_vec = _EMBEDDING_CACHE[ch_id][1]
+        else:
             doc_prompt = f"File: {ch['file']} (Lines {ch['line_start']}-{ch['line_end']})\n{ch['text']}"
-            c_resp = ollama.embeddings(model="nomic-embed-text", prompt=doc_prompt[:1500])
-            score = _cosine_similarity(q_vec, c_resp["embedding"])
-            scored.append({
-                "file": ch["file"],
-                "line_start": ch["line_start"],
-                "line_end": ch["line_end"],
-                "snippet": ch["text"],
-                "similarity_score": round(score, 4)
-            })
-        except Exception:
-            continue
+            try:
+                c_resp = ollama.embeddings(model="nomic-embed-text", prompt=doc_prompt[:1500])
+                c_vec = c_resp["embedding"]
+                _EMBEDDING_CACHE[ch_id] = (ch["mtime"], c_vec)
+            except Exception:
+                continue
 
-    # Sort descending by similarity
+        score = _cosine_similarity(q_vec, c_vec)
+        scored.append({
+            "file": ch["file"],
+            "line_start": ch["line_start"],
+            "line_end": ch["line_end"],
+            "snippet": ch["text"],
+            "similarity_score": round(score, 4)
+        })
+
     scored.sort(key=lambda x: x["similarity_score"], reverse=True)
     top_results = scored[: max(1, int(top_k))]
 
@@ -319,6 +434,7 @@ def search_codebase(repo_path: str, query: str, top_k: int = 3, **kwargs) -> Dic
         "status": "success",
         "query": query,
         "total_chunks_indexed": len(eval_chunks),
+        "cache_size": len(_EMBEDDING_CACHE),
         "results": top_results
     }
 
@@ -326,13 +442,12 @@ def search_codebase(repo_path: str, query: str, top_k: int = 3, **kwargs) -> Dic
 def execute_test_sandbox(test_code: str, target_code: str = "", **kwargs) -> Dict[str, Any]:
     """
     Executes a synthesized unit test in an isolated temporary Python sandbox.
-    Returns execution status, pass/fail results, and stderr/stdout logs.
+    Returns execution status, pass/fail results, and execution duration.
     """
     t0 = time.time()
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
         
-        # Write target code if provided
         if target_code:
             with open(tmp_path / "target_module.py", "w", encoding="utf-8") as f:
                 f.write(target_code)
@@ -342,7 +457,6 @@ def execute_test_sandbox(test_code: str, target_code: str = "", **kwargs) -> Dic
             f.write(test_code)
 
         try:
-            # Execute with pytest
             cmd = [sys.executable, "-m", "pytest", str(test_file), "-v", "--tb=short"]
             proc = subprocess.run(cmd, cwd=tmpdir, capture_output=True, text=True, timeout=12)
             passed = (proc.returncode == 0)
@@ -358,12 +472,13 @@ def execute_test_sandbox(test_code: str, target_code: str = "", **kwargs) -> Dic
         "status": "success",
         "passed": passed,
         "duration_sec": round(time.time() - t0, 3),
-        "output": output.strip()[-1000:]  # Last 1000 chars of pytest log
+        "output": output.strip()[-1000:]
     }
 
 
 # Exported tool mapping for Supervisor Gate 1 allowlist
 TOOLS = {
+    "get_repo_overview": get_repo_overview,
     "scan_security_and_secrets": scan_security_and_secrets,
     "map_architecture_dependencies": map_architecture_dependencies,
     "search_codebase": search_codebase,

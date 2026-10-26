@@ -124,80 +124,73 @@ aside {
   overflow-y: auto;
 }
 
-/* macOS Window Traffic Lights */
-.mac-traffic-lights {
+/* Professional Developer Sidebar Header */
+.logo {
   display: flex;
+  gap: 12px;
   align-items: center;
-  gap: 7px;
-  padding: 4px 6px 12px;
+  padding: 6px 4px 14px;
   border-bottom: 1px solid var(--b);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
-.mac-dots {
-  display: inline-flex;
-  gap: 7px;
-  align-items: center;
+.logo-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.3), rgba(34, 211, 238, 0.2));
+  border: 1px solid rgba(124, 92, 255, 0.45);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  box-shadow: 0 4px 16px rgba(124, 92, 255, 0.3);
 }
-.mac-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  position: relative;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s;
+.logo-text b {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  display: block;
+}
+.logo-sub {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--c);
+  text-transform: uppercase;
+}
+.repo-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.quick-actions {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+  margin-top: 2px;
+  padding: 4px 0;
 }
-.mac-dot svg {
-  width: 8px;
-  height: 8px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.mac-dots:hover .mac-dot svg { opacity: 0.8; }
-.mac-red { background: #ff5f56; }
-.mac-red svg { stroke: #4d0000; }
-.mac-yellow { background: #ffbd2e; }
-.mac-yellow svg { stroke: #7a5200; }
-.mac-green { background: #27c93f; }
-.mac-green svg { stroke: #004d00; }
-.mac-dots:hover .mac-dot { transform: scale(1.08); }
-
-.mac-bar-title {
-  margin-left: auto;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+.action-btn {
+  background: transparent;
+  border: 0;
   color: var(--m);
-  text-transform: uppercase;
-  opacity: 0.75;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
 }
-
-/* Sidebar Logo */
-.logo {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 4px 6px 6px;
+.action-btn:hover {
+  color: var(--c);
+  text-decoration: underline;
 }
-.logo > span {
-  font-size: 26px;
-  line-height: 1;
-  filter: drop-shadow(0 0 10px rgba(124, 92, 255, 0.5));
-  transition: filter 0.5s ease-out;
+.sep {
+  color: rgba(255, 255, 255, 0.15);
+  font-size: 10px;
 }
-body.ai .logo > span {
-  animation: macAura 3s ease-in-out infinite alternate;
-}
-@keyframes macAura {
-  0% { filter: drop-shadow(0 0 8px #34d399) drop-shadow(0 0 2px #22d3ee); }
-  100% { filter: drop-shadow(0 0 18px #34d399) drop-shadow(0 0 8px #22d3ee); }
-}
-.logo b {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
   color: #fff;
 }
 .logo small {
@@ -954,37 +947,31 @@ pre.code:hover .cpb, .cpb.done { opacity: 1; }
 
 <div class="app">
 <aside>
-  <!-- macOS Titlebar with Traffic Lights -->
-  <div class="mac-traffic-lights">
-    <div class="mac-dots">
-      <span class="mac-dot mac-red" title="Close"><svg viewBox="0 0 12 12"><path d="M3 3L9 9M9 3L3 9" stroke-width="1.3" stroke-linecap="round"/></svg></span>
-      <span class="mac-dot mac-yellow" title="Minimize"><svg viewBox="0 0 12 12"><path d="M2.5 6H9.5" stroke-width="1.3" stroke-linecap="round"/></svg></span>
-      <span class="mac-dot mac-green" title="Maximize"><svg viewBox="0 0 12 12"><path d="M3 3h6v6H3z" fill="none" stroke-width="1.2"/></svg></span>
-    </div>
-    <div class="mac-bar-title">macOS Console</div>
-  </div>
-
   <div class="logo">
-    <span>🩺</span>
-    <div>
+    <div class="logo-badge">🩺</div>
+    <div class="logo-text">
       <b>RepoDoctor</b>
-      <small>autonomous code health & PR engine</small>
+      <span class="logo-sub">Autonomous Code Intelligence</span>
     </div>
   </div>
 
   <label>Target Codebase</label>
-  <div class="row">
-    <input id="repo" spellcheck="false" placeholder="/path/to/repo">
-    <button class="ghost" id="br" title="Browse directories (Ctrl+O)">📁</button>
-    <button class="btn" id="scan">Scan</button>
-  </div>
-  <div class="row" style="margin-top:4px;gap:6px">
-    <button class="ghost sm" id="btn-pick-folder" style="flex:1" title="Open OS file explorer for folder">📂 Open Folder…</button>
-    <button class="ghost sm" id="btn-pick-files" style="flex:1" title="Open OS file explorer for files or .zip">📎 Files / ZIP…</button>
+  <div class="repo-box">
+    <div class="row">
+      <input id="repo" spellcheck="false" placeholder="/path/to/repo">
+      <button class="btn" id="scan">Scan</button>
+    </div>
+    <select id="repo-sel"><option value="">Select Repository…</option></select>
+    <div class="quick-actions">
+      <button class="action-btn" id="br" title="Browse directories (Ctrl+O)">Browse…</button>
+      <span class="sep">|</span>
+      <button class="action-btn" id="btn-pick-folder" title="Open OS file explorer for folder">Open Folder</button>
+      <span class="sep">|</span>
+      <button class="action-btn" id="btn-pick-files" title="Open OS file explorer for files or .zip">Upload ZIP</button>
+    </div>
   </div>
   <input type="file" id="native-folder-input" webkitdirectory directory multiple style="display:none">
   <input type="file" id="native-file-input" multiple accept=".py,.zip,.json,.md,.yaml,.yml,.txt,.js,.ts" style="display:none">
-  <select id="repo-sel" style="margin-top:4px"><option value="">📁 Choose Repository…</option></select>
 
   <label>Reasoning Model</label>
   <select id="model"><option>…</option></select>

@@ -3,7 +3,7 @@
 Run:  python web_server.py      (then open http://127.0.0.1:8502)
 Wraps RepoDoctorEngine; does not modify engine.py / tools.py / ui.py.
 """
-import json, os, webbrowser, subprocess
+import json, os, webbrowser, subprocess, base64, zipfile, io
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -13,6 +13,8 @@ from engine import RepoDoctorEngine
 ROOT = Path(__file__).resolve().parent
 PORT = int(os.environ.get("REPODOCTOR_PORT", 8502))
 SKIP = {".git", "venv", ".venv", "__pycache__", "node_modules", ".pytest_cache"}
+UPLOADS_DIR = ROOT / "uploaded_repos"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 engine = RepoDoctorEngine()
 
 # Browser may only load things from this origin: a hard guarantee that the UI never phones home.
@@ -23,14 +25,60 @@ def g(o, k):
     return o.get(k) if hasattr(o, "get") else getattr(o, k, None)
 
 
+def handle_upload(body):
+    """Handles folder, files, or zip uploaded via browser native file picker."""
+    proj_name = body.get("name") or "custom_project"
+    # sanitize folder name
+    clean_name = "".join(c for c in proj_name if c.isalnum() or c in ("-", "_")).strip() or "custom_project"
+    target_dir = UPLOADS_DIR / clean_name
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Zip file upload
+    if body.get("zip_base64"):
+        raw = base64.b64decode(body["zip_base64"])
+        with zipfile.ZipFile(io.BytesIO(raw)) as z:
+            z.extractall(target_dir)
+        return {
+            "status": "success",
+            "repo_path": str(target_dir.resolve()),
+            "name": clean_name,
+            "message": f"Extracted ZIP archive to {clean_name}"
+        }
+
+    # 2. File list upload
+    files = body.get("files", [])
+    if not files:
+        return {"status": "error", "message": "No files received in upload payload."}
+
+    saved = 0
+    for item in files:
+        rel = item.get("path", "").lstrip("/")
+        if not rel or ".." in rel:
+            continue
+        dest = (target_dir / rel).resolve()
+        if not dest.is_relative_to(target_dir):
+            continue
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        content = item.get("content", "")
+        dest.write_text(content, encoding="utf-8", errors="ignore")
+        saved += 1
+
+    return {
+        "status": "success",
+        "repo_path": str(target_dir.resolve()),
+        "name": clean_name,
+        "files_count": saved,
+        "message": f"Successfully loaded {saved} file(s) into {clean_name}"
+    }
+
+
 def browse_folder():
-    """Opens native OS file explorer dialog using zenity."""
+    """Opens native OS file explorer dialog using zenity as desktop fallback."""
     try:
         parent_dir = str(ROOT.parent)
         cmd = ["zenity", "--file-selection", "--directory", "--title=Select Codebase to Audit", f"--filename={parent_dir}/"]
-        # Ensure DISPLAY and WAYLAND_DISPLAY are passed to zenity
         env = os.environ.copy()
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90, env=env)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=env)
         if proc.returncode == 0:
             chosen = proc.stdout.strip()
             if chosen and os.path.isdir(chosen):
@@ -41,7 +89,7 @@ def browse_folder():
 
 
 def available_repos():
-    """List current and sibling project repositories for 1-click UI switching."""
+    """List current, sibling, and uploaded repositories for 1-click UI switching."""
     parent = ROOT.parent
     repos = [
         {"name": "RepoDoctor (Current Project)", "path": str(ROOT)},
@@ -53,6 +101,15 @@ def available_repos():
                 repos.append({"name": d.name, "path": str(d)})
     except Exception:
         pass
+
+    # Include uploaded repos
+    try:
+        for d in sorted(UPLOADS_DIR.iterdir()):
+            if d.is_dir() and not d.name.startswith("."):
+                repos.append({"name": f"📁 {d.name} (Uploaded)", "path": str(d.resolve())})
+    except Exception:
+        pass
+
     return {"current": str(ROOT), "repos": repos}
 
 
@@ -93,6 +150,7 @@ POST = {
     "run": lambda b: engine.run_sandbox_test(b["test"], b.get("code", "")),
     "search": lambda b: engine.search_code(b["repo"], b["query"], int(b.get("k", 4))),
     "chat": lambda b: engine.chat_with_agent(b["prompt"], b["repo"], b.get("model")),
+    "upload": lambda b: handle_upload(b),
 }
 
 

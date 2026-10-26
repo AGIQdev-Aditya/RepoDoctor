@@ -205,19 +205,56 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# SIDEBAR REPOSITORY SELECTOR (Guaranteed Instant Switching)
+# SIDEBAR REPOSITORY SELECTOR (Guaranteed Instant Switching & File Explorer)
 # -----------------------------------------------------------------------------
 st.sidebar.markdown("### 📁 Select Repository")
+
+# ChatGPT-Style Native File Explorer Upload
+uploaded_files = st.sidebar.file_uploader(
+    "Open OS File Explorer (.zip or files):",
+    type=["zip", "py", "json", "md", "txt", "yaml", "yml"],
+    accept_multiple_files=True,
+    help="Click 'Browse files' to open your native OS file explorer, exactly like ChatGPT!"
+)
 
 base_workspace = Path(__file__).parent.parent
 repodoctor_path = str(Path(__file__).parent.resolve())
 workshop_path = str((base_workspace / "workshop-agent").resolve())
+upload_target = Path(__file__).parent / "uploaded_repos" / "st_custom"
+
+if uploaded_files:
+    upload_target.mkdir(parents=True, exist_ok=True)
+    import zipfile, io
+    total_saved = 0
+    for f in uploaded_files:
+        if f.name.endswith(".zip"):
+            with zipfile.ZipFile(io.BytesIO(f.read())) as z:
+                z.extractall(upload_target)
+            total_saved += 1
+        else:
+            dest = upload_target / f.name
+            dest.write_bytes(f.read())
+            total_saved += 1
+            
+    current_hash = f"{len(uploaded_files)}_{uploaded_files[0].name}_{uploaded_files[0].size}"
+    if st.session_state.get("last_uploaded_hash") != current_hash:
+        st.session_state["last_uploaded_hash"] = current_hash
+        st.session_state["target_repo"] = str(upload_target.resolve())
+        st.session_state["diag"] = engine.get_full_diagnosis(str(upload_target.resolve()))
+        st.session_state.pop("search_res", None)
+        st.session_state.pop("synth_test_code", None)
+        st.session_state.pop("test_exec_result", None)
+        st.sidebar.success(f"✓ Auditing {len(uploaded_files)} file(s) from File Explorer!")
+        st.rerun()
 
 preset_options = {
     "RepoDoctor (Current Project)": repodoctor_path,
     "Workshop Agent (Hackathon Baseline)": workshop_path,
+    "Uploaded via File Explorer": str(upload_target.resolve()) if upload_target.exists() else "",
     "Custom Directory...": "custom"
 }
+# Filter out empty options
+preset_options = {k: v for k, v in preset_options.items() if v}
 
 if "target_repo" not in st.session_state:
     st.session_state["target_repo"] = repodoctor_path

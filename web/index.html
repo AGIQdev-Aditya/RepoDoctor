@@ -54,6 +54,12 @@ pre.code{background:rgba(0,0,0,.35);border:1px solid var(--b);border-radius:10px
 .sim{height:5px;background:rgba(255,255,255,.07);border-radius:9px;overflow:hidden;width:120px}.sim i{display:block;height:100%;background:var(--ok)}
 #toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:10}.toast{background:#151826;border:1px solid var(--bad);border-left-width:4px;padding:11px 15px;border-radius:10px;max-width:360px;animation:in .3s;transition:.4s}.toast.ok{border-color:var(--ok)}.toast.out{opacity:0;transform:translateX(30px)}
 .g{color:var(--ok)}.r{color:var(--bad)}
+.upload-card{background:rgba(255,255,255,.03);border:1px dashed var(--b);border-radius:12px;padding:10px;margin-bottom:8px;text-align:center;transition:all .2s}
+.upload-card.dragover{border-color:var(--a);background:rgba(124,92,255,.12);transform:scale(1.01)}
+.upload-btns{display:flex;gap:6px;margin-bottom:6px}
+.upload-btns button{flex:1;font-size:11px;padding:7px 4px;display:flex;align-items:center;justify-content:center;gap:4px}
+.drop-hint{font-size:11px;color:var(--m);display:block;cursor:pointer}
+.drop-hint:hover{color:var(--t)}
 @media(max-width:900px){.app{grid-template-columns:1fr}aside{position:static;height:auto}.grid.two,.hero{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body>
@@ -61,10 +67,17 @@ pre.code{background:rgba(0,0,0,.35);border:1px solid var(--b);border-radius:10px
 <div class="app">
 <aside>
 <div class="logo"><span>🩺</span><div><b>RepoDoctor</b><small>offline code intelligence</small></div></div>
-<label>Repository</label>
-<button class="btn sm" id="btn-browse" style="width:100%;margin-bottom:8px;background:rgba(255,255,255,.07);border:1px solid var(--b);display:flex;align-items:center;justify-content:center;gap:6px">📂 Open File Explorer…</button>
-<input type="file" id="browser-picker" webkitdirectory directory style="display:none">
-<select id="repo-sel" style="margin-bottom:6px"><option value="">📁 Loading folders…</option></select>
+<label>Repository & Explorer</label>
+<div class="upload-card" id="drop-zone">
+  <div class="upload-btns">
+    <button class="btn sm" id="btn-pick-folder" type="button" title="Select project folder">📁 Open Folder</button>
+    <button class="ghost sm" id="btn-pick-files" type="button" title="Select files or .zip">📎 Files / Zip</button>
+  </div>
+  <input type="file" id="native-folder-input" webkitdirectory directory multiple style="display:none">
+  <input type="file" id="native-file-input" multiple accept=".py,.zip,.json,.md,.yaml,.yml,.txt,.js,.ts" style="display:none">
+  <span class="drop-hint" id="drop-hint">Click above or drop folder / .zip</span>
+</div>
+<select id="repo-sel" style="margin-bottom:6px"><option value="">📁 Choose Repository…</option></select>
 <div class="row"><input id="repo" spellcheck="false" placeholder="/path/to/repo"><button class="btn" id="scan">Scan</button></div>
 <div class="chips" id="repo-chips" style="margin-top:5px;gap:4px"></div>
 <label>Model</label><select id="model"><option>…</option></select>
@@ -119,15 +132,48 @@ async function scan(){const repo=$('#repo').value.trim();if(!repo)return toast('
   api('/api/complexity',{repo:d.repo_path}).then(c=>{S.cx=c;renderCx()}).catch(()=>{});toast('Scan finished in '+d.duration_sec+'s','ok')}
  catch(e){toast(e.message)}finally{b.disabled=false;b.textContent='Scan'}}
 $('#scan').onclick=scan;$('#repo').onkeydown=e=>{if(e.key==='Enter')scan()};
-$('#btn-browse').onclick=async()=>{
- const b=$('#btn-browse');b.disabled=true;b.textContent='Opening Explorer…';
- try{const r=await api('/api/browse');
-  if(r.status==='success'&&r.path){$('#repo').value=r.path;toast('Selected: '+r.path.split('/').pop(),'ok');scan()}
-  else if(r.status==='error'){$('#browser-picker').click()}
- }catch(e){$('#browser-picker').click()}
- finally{b.disabled=false;b.textContent='📂 Open File Explorer…'}
-};
-$('#browser-picker').onchange=e=>{if(e.target.files.length){const f=e.target.files[0].webkitRelativePath.split('/')[0];toast('Selected folder: '+f,'ok')}};
+$('#btn-pick-folder').onclick=()=>$('#native-folder-input').click();
+$('#btn-pick-files').onclick=()=>$('#native-file-input').click();
+$('#drop-hint').onclick=()=>$('#native-folder-input').click();
+$('#native-folder-input').onchange=e=>handleFilesSelected(e.target.files);
+$('#native-file-input').onchange=e=>handleFilesSelected(e.target.files);
+
+const dropZone=$('#drop-zone');
+['dragenter','dragover'].forEach(n=>dropZone.addEventListener(n,e=>{e.preventDefault();dropZone.classList.add('dragover')}));
+['dragleave','drop'].forEach(n=>dropZone.addEventListener(n,e=>{e.preventDefault();dropZone.classList.remove('dragover')}));
+dropZone.addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)handleFilesSelected(e.dataTransfer.files)});
+
+async function handleFilesSelected(files){
+ if(!files||!files.length)return;
+ const arr=Array.from(files),zip=arr.find(f=>f.name.toLowerCase().endsWith('.zip'));
+ if(zip){
+  toast('Unpacking '+zip.name+'…','ok');
+  const r=new FileReader();
+  r.onload=async()=>{
+   const b64=(r.result||'').split(',')[1],name=zip.name.replace(/\.zip$/i,'');
+   try{
+    const res=await api('/api/upload',{name,zip_base64:b64});
+    if(res.status==='success'){$('#repo').value=res.repo_path;toast('Extracted '+name+'! Scanning…','ok');loadRepos();await scan()}
+    else toast(res.message||'ZIP extraction failed')
+   }catch(err){toast(err.message)}
+  };
+  r.readAsDataURL(zip);return;
+ }
+ const skip=['.git/','.venv/','venv/','__pycache__/','node_modules/','.pytest_cache/'];
+ const allowed=arr.filter(f=>{const p=f.webkitRelativePath||f.name;return !skip.some(s=>p.includes(s))&&f.size<3*1024*1024});
+ if(!allowed.length)return toast('No code files found');
+ const rootName=allowed[0].webkitRelativePath?allowed[0].webkitRelativePath.split('/')[0]:'custom_code';
+ toast('Uploading '+allowed.length+' file(s) from '+rootName+'…','ok');
+ const payload=[];
+ for(const f of allowed.slice(0,300)){
+  try{const text=await f.text(),rel=f.webkitRelativePath?f.webkitRelativePath.split('/').slice(1).join('/'):f.name;payload.push({path:rel||f.name,content:text})}catch(e){}
+ }
+ try{
+  const res=await api('/api/upload',{name:rootName,files:payload});
+  if(res.status==='success'){$('#repo').value=res.repo_path;toast('Loaded '+res.files_count+' files! Scanning…','ok');loadRepos();await scan()}
+  else toast(res.message||'Upload failed')
+ }catch(err){toast(err.message)}
+}
 
 /* ---------- overview ---------- */
 function renderOv(){const d=S.diag,o=d.overview||{},s=d.security||{},a=d.architecture||{},sc=s.security_score??0,col=sc>=75?'var(--ok)':sc>=50?'var(--w)':'var(--bad)',C=2*Math.PI*54;

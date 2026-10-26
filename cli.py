@@ -130,7 +130,9 @@ def run_cli_audit(target_dir: str, generate_pr: bool = False):
         t3.add_column("Cycle Group", style="bold red")
         t3.add_column("Coupled Modules", style="white")
         for idx, cycle in enumerate(arch["cycles"], 1):
-            t3.add_row(f"Cycle #{idx}", " ➔ ".join(cycle))
+            cycle_str = cycle if isinstance(cycle, str) else " ➔ ".join(cycle)
+            cycle_str = cycle_str.replace(" -> ", " ➔ ")
+            t3.add_row(f"Cycle #{idx}", cycle_str)
         console.print(t3)
 
     # Optional Step 2: Synthesize PR Review with Gemma 4 if requested

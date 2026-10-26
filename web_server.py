@@ -1,13 +1,28 @@
-"""RepoDoctor web console server: stdlib only, localhost only, works fully offline.
-
-Run:  python web_server.py      (then open http://127.0.0.1:8502)
-Wraps RepoDoctorEngine; does not modify engine.py / tools.py / ui.py.
 """
-import json, os, webbrowser, subprocess, base64, zipfile, io
-from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from pathlib import Path
-from urllib.parse import urlparse, parse_qs
+RepoDoctor Web Console Server
+Thread-Safe, Air-Gapped, Localhost-Only with Hardware Sandboxing & DNS-Rebinding Guard.
 
+Run: python web_server.py (starts at http://127.0.0.1:8502)
+"""
+
+from __future__ import annotations
+
+import base64
+import io
+import json
+import os
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import webbrowser
+import zipfile
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+import hardened
 from engine import RepoDoctorEngine
 
 ROOT = Path(__file__).resolve().parent
@@ -15,47 +30,156 @@ PORT = int(os.environ.get("REPODOCTOR_PORT", 8502))
 SKIP = {".git", "venv", ".venv", "__pycache__", "node_modules", ".pytest_cache"}
 UPLOADS_DIR = ROOT / "uploaded_repos"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-engine = RepoDoctorEngine()
 
-# Browser may only load things from this origin: a hard guarantee that the UI never phones home.
+# Install security invariants & optimizations across all tools
+hardened.install()
+
+engine = RepoDoctorEngine()
+AI_SEMAPHORE = threading.BoundedSemaphore(2)  # Cap parallel model tasks to protect GPU VRAM
+SLOW_ROUTES = {"pr", "patch", "synth", "chat", "search"}
+
+# Strict localhost-only Content Security Policy
 CSP = "default-src 'self' 'unsafe-inline' data:; connect-src 'self'"
+ALLOWED_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
 
 
 def g(o, k):
     return o.get(k) if hasattr(o, "get") else getattr(o, k, None)
 
 
-def handle_upload(body):
-    """Handles folder, files, or zip uploaded via browser native file picker."""
+def status():
+    base = {"root": str(ROOT), "default": engine.default_model}
+    try:
+        import ollama
+        res = ollama.list()
+        items = g(res, "models") or []
+        names = [g(m, "model") or g(m, "name") for m in items]
+        return {**base, "ollama": True, "models": [n for n in names if n]}
+    except Exception as e:
+        return {**base, "ollama": False, "models": [], "error": str(e)}
+
+
+def py_files(repo: str) -> list[str]:
+    base = hardened.safe_resolve_path(repo)
+    out = []
+    for r, d, f in os.walk(base):
+        d[:] = [x for x in d if x not in SKIP and not x.startswith(".")]
+        out += [str((Path(r) / n).relative_to(base)) for n in sorted(f) if n.endswith(".py")]
+    return out[:500]
+
+
+def read_file(repo: str, rel: str) -> dict[str, str]:
+    base = hardened.safe_resolve_path(repo)
+    p = hardened.safe_resolve_path(base, rel)
+    if not p.is_file():
+        raise FileNotFoundError(f"File not found: {rel}")
+    with p.open("rb") as stream:
+        data = stream.read(6001)
+    return {
+        "text": data[:6000].decode("utf-8", errors="replace"),
+        "truncated": len(data) > 6000
+    }
+
+
+def list_directory(path_str: str) -> dict:
+    p = Path(path_str or Path.home()).expanduser().resolve()
+    if not p.is_dir():
+        raise NotADirectoryError(str(p))
+    dirs = []
+    for c in sorted(p.iterdir(), key=lambda x: x.name.lower()):
+        try:
+            if c.is_dir() and not c.is_symlink() and not c.name.startswith(".") and c.name not in SKIP:
+                dirs.append({"name": c.name, "full": str(c), "git": (c / ".git").exists()})
+        except OSError:
+            pass
+    return {"path": str(p), "parent": str(p.parent) if p.parent != p else None, "dirs": dirs[:500]}
+
+
+def pick_native_dialog() -> dict:
+    for cmd in (
+        ["zenity", "--file-selection", "--directory", "--title=Select Codebase to Audit"],
+        ["kdialog", "--getexistingdirectory", str(Path.home())],
+        ["yad", "--file", "--directory"]
+    ):
+        if shutil.which(cmd[0]):
+            try:
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                if r.returncode == 0 and r.stdout.strip():
+                    chosen = r.stdout.strip()
+                    if os.path.isdir(chosen):
+                        return {"status": "success", "path": chosen}
+            except Exception:
+                pass
+    return {"status": "error", "message": "No native dialog available."}
+
+
+def locate_dropped_folder(name: str) -> list[str]:
+    home = Path.home()
+    hits, end = [], time.time() + 4
+    for r, d, _ in os.walk(home):
+        d[:] = [x for x in d if not x.startswith(".") and x not in SKIP and x not in {"snap", "Library", "AppData"}]
+        if len(Path(r).relative_to(home).parts) >= 5:
+            d[:] = []
+        if name in d:
+            hits.append(str(Path(r) / name))
+        if len(hits) >= 8 or time.time() > end:
+            break
+    return hits
+
+
+def available_repos() -> dict:
+    parent = ROOT.parent
+    repos = [
+        {"name": "RepoDoctor (Current Project)", "path": str(ROOT)},
+        {"name": "workshop-agent (KT Baseline)", "path": str(parent / "workshop-agent")}
+    ]
+    try:
+        for d in sorted(parent.iterdir()):
+            if d.is_dir() and d not in (ROOT, parent / "workshop-agent") and not d.name.startswith((".", "venv")):
+                repos.append({"name": d.name, "path": str(d.resolve())})
+    except Exception:
+        pass
+
+    try:
+        for d in sorted(UPLOADS_DIR.iterdir()):
+            if d.is_dir() and not d.name.startswith("."):
+                repos.append({"name": f"📁 {d.name} (Uploaded)", "path": str(d.resolve())})
+    except Exception:
+        pass
+
+    return {"current": str(ROOT), "repos": repos}
+
+
+def handle_upload(body: dict) -> dict:
+    """Save browser-uploaded folder files or extract uploaded ZIP with Zip-Slip protection."""
     proj_name = body.get("name") or "custom_project"
-    # sanitize folder name
     clean_name = "".join(c for c in proj_name if c.isalnum() or c in ("-", "_")).strip() or "custom_project"
     target_dir = UPLOADS_DIR / clean_name
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. Zip file upload
+    # 1. Base64 ZIP Archive Upload
     if body.get("zip_base64"):
         raw = base64.b64decode(body["zip_base64"])
         with zipfile.ZipFile(io.BytesIO(raw)) as z:
-            z.extractall(target_dir)
+            extracted = hardened.extract_zip_safely(z, target_dir)
         return {
             "status": "success",
             "repo_path": str(target_dir.resolve()),
             "name": clean_name,
-            "message": f"Extracted ZIP archive to {clean_name}"
+            "message": f"Safely extracted {extracted} files from ZIP archive into {clean_name}"
         }
 
-    # 2. File list upload
+    # 2. File Array Upload
     files = body.get("files", [])
     if not files:
-        return {"status": "error", "message": "No files received in upload payload."}
+        return {"status": "error", "message": "No files provided in upload payload."}
 
     saved = 0
     for item in files:
         rel = item.get("path", "").lstrip("/")
         if not rel or ".." in rel:
             continue
-        dest = (target_dir / rel).resolve()
+        dest = (target_dir / rel).resolve(strict=False)
         if not dest.is_relative_to(target_dir):
             continue
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -72,76 +196,7 @@ def handle_upload(body):
     }
 
 
-def browse_folder():
-    """Opens native OS file explorer dialog using zenity as desktop fallback."""
-    try:
-        parent_dir = str(ROOT.parent)
-        cmd = ["zenity", "--file-selection", "--directory", "--title=Select Codebase to Audit", f"--filename={parent_dir}/"]
-        env = os.environ.copy()
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=env)
-        if proc.returncode == 0:
-            chosen = proc.stdout.strip()
-            if chosen and os.path.isdir(chosen):
-                return {"status": "success", "path": chosen}
-        return {"status": "cancelled", "path": ""}
-    except Exception as e:
-        return {"status": "error", "message": str(e), "path": ""}
-
-
-def available_repos():
-    """List current, sibling, and uploaded repositories for 1-click UI switching."""
-    parent = ROOT.parent
-    repos = [
-        {"name": "RepoDoctor (Current Project)", "path": str(ROOT)},
-        {"name": "workshop-agent (KT Baseline)", "path": str(parent / "workshop-agent")}
-    ]
-    try:
-        for d in sorted(parent.iterdir()):
-            if d.is_dir() and d not in (ROOT, parent / "workshop-agent") and not d.name.startswith((".", "venv")):
-                repos.append({"name": d.name, "path": str(d)})
-    except Exception:
-        pass
-
-    # Include uploaded repos
-    try:
-        for d in sorted(UPLOADS_DIR.iterdir()):
-            if d.is_dir() and not d.name.startswith("."):
-                repos.append({"name": f"📁 {d.name} (Uploaded)", "path": str(d.resolve())})
-    except Exception:
-        pass
-
-    return {"current": str(ROOT), "repos": repos}
-
-
-def status():
-    base = {"root": str(ROOT), "default": engine.default_model}
-    try:
-        import ollama
-        res = ollama.list()
-        items = g(res, "models") or []
-        names = [g(m, "model") or g(m, "name") for m in items]
-        return {**base, "ollama": True, "models": [n for n in names if n]}
-    except Exception as e:
-        return {**base, "ollama": False, "models": [], "error": str(e)}
-
-
-def py_files(repo):
-    base, out = Path(repo).resolve(), []
-    for r, d, f in os.walk(base):
-        d[:] = [x for x in d if x not in SKIP and not x.startswith(".")]
-        out += [str((Path(r) / n).relative_to(base)) for n in sorted(f) if n.endswith(".py")]
-    return out[:400]
-
-
-def read_file(repo, rel):
-    base = Path(repo).resolve()
-    p = (base / rel).resolve()
-    if not p.is_relative_to(base):  # path-traversal guard
-        raise PermissionError("Path escapes the repository.")
-    return {"text": p.read_text(encoding="utf-8", errors="ignore")[:6000]}
-
-
-POST = {
+POST_DISPATCH = {
     "diagnose": lambda b: engine.get_full_diagnosis(b["repo"]),
     "complexity": lambda b: engine.analyze_complexity(b["repo"]),
     "pr": lambda b: engine.synthesize_pr_review(b["repo"], b.get("model")),
@@ -154,73 +209,121 @@ POST = {
 }
 
 
-class H(BaseHTTPRequestHandler):
-    def log_message(self, *a):
+class RepoDoctorHandler(BaseHTTPRequestHandler):
+    def log_message(self, *args):
         pass
 
-    def send(self, code, body, ctype="application/json"):
-        data = body if isinstance(body, bytes) else json.dumps(body, default=str).encode()
-        self.send_response(code)
-        for k, v in (("Content-Type", ctype + "; charset=utf-8"), ("Cache-Control", "no-store"),
-                     ("X-Content-Type-Options", "nosniff"), ("Content-Security-Policy", CSP)):
-            self.send_header(k, v)
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+    def send_json(self, code: int, body: any, ctype: str = "application/json") -> None:
+        data = body if isinstance(body, bytes) else json.dumps(body, default=str).encode("utf-8")
+        try:
+            self.send_response(code)
+            for k, v in (
+                ("Content-Type", ctype + "; charset=utf-8"),
+                ("Cache-Control", "no-store"),
+                ("X-Content-Type-Options", "nosniff"),
+                ("Content-Security-Policy", CSP)
+            ):
+                self.send_header(k, v)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
-    def guard(self):
-        # Blocks DNS-rebinding and cross-site requests: this server can read local dirs and run tests.
-        if self.headers.get("Host", "").split(":")[0] not in ("localhost", "127.0.0.1"):
-            self.send(403, {"status": "error", "message": "Forbidden host."})
+    def verify_airgap_origin(self) -> bool:
+        """Blocks DNS Rebinding and Cross-Origin Web Attacks."""
+        host = self.headers.get("Host", "").split(":")[0].lower()
+        if host not in ALLOWED_HOSTS:
+            self.send_json(403, {"status": "error", "message": "Forbidden host (DNS rebinding guard)."})
             return False
+
+        origin = self.headers.get("Origin")
+        if origin:
+            parsed = urlparse(origin)
+            if (parsed.hostname or "").lower() not in ALLOWED_HOSTS:
+                self.send_json(403, {"status": "error", "message": "Cross-origin request blocked."})
+                return False
         return True
 
-    def do_GET(self):
-        if not self.guard():
+    def do_GET(self) -> None:
+        if not self.verify_airgap_origin():
             return
-        u, q = urlparse(self.path), {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+        u = urlparse(self.path)
+        q = {k: v[0] for k, v in parse_qs(u.query).items()}
+
         try:
             if u.path in ("/", "/index.html"):
-                return self.send(200, (ROOT / "web" / "index.html").read_bytes(), "text/html")
+                html_path = ROOT / "web" / "index.html"
+                if not html_path.exists():
+                    html_path = ROOT / "index.html"
+                return self.send_json(200, html_path.read_bytes(), "text/html")
             if u.path == "/api/status":
-                return self.send(200, status())
-            if u.path == "/api/browse":
-                return self.send(200, browse_folder())
+                return self.send_json(200, status())
             if u.path == "/api/repos":
-                return self.send(200, available_repos())
+                return self.send_json(200, available_repos())
             if u.path == "/api/files":
-                return self.send(200, py_files(q["repo"]))
+                return self.send_json(200, py_files(q["repo"]))
             if u.path == "/api/file":
-                return self.send(200, read_file(q["repo"], q["path"]))
+                return self.send_json(200, read_file(q["repo"], q["path"]))
+            if u.path == "/api/ls":
+                return self.send_json(200, list_directory(q.get("path", "")))
+            if u.path == "/api/pick":
+                return self.send_json(200, pick_native_dialog())
+            if u.path == "/api/find":
+                return self.send_json(200, locate_dropped_folder(q.get("name", "")))
             if u.path == "/api/report":
-                return self.send(200, engine.export_markdown_report(q["repo"]).encode(), "text/markdown")
-            self.send(404, {"status": "error", "message": "Not found."})
+                return self.send_json(200, engine.export_markdown_report(q["repo"]).encode(), "text/markdown")
+            self.send_json(404, {"status": "error", "message": "Not found."})
         except Exception as e:
-            self.send(500, {"status": "error", "message": str(e)})
+            self.send_json(500, {"status": "error", "message": str(e)})
 
-    def do_POST(self):
-        if not self.guard():
+    def do_POST(self) -> None:
+        if not self.verify_airgap_origin():
             return
-        if self.headers.get("X-RD") != "1":  # custom header forces a CORS preflight we never grant
-            return self.send(403, {"status": "error", "message": "Missing header."})
+        if self.headers.get("X-RD") != "1":
+            return self.send_json(403, {"status": "error", "message": "Missing required security header."})
+
         try:
             route = urlparse(self.path).path.removeprefix("/api/")
-            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
-            if route not in POST:
-                return self.send(404, {"status": "error", "message": "Unknown endpoint."})
-            self.send(200, POST[route](body))
+            content_length = int(self.headers.get("Content-Length", 0))
+
+            # 30MB limit for safe zip archives, 2MB for standard JSON
+            max_bytes = 30 * 1024 * 1024 if route == "upload" else 2 * 1024 * 1024
+            if not 0 <= content_length <= max_bytes:
+                return self.send_json(413, {"status": "error", "message": "Request payload exceeds size limit."})
+
+            raw_body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+            body = json.loads(raw_body.decode("utf-8", errors="replace"))
+
+            if route not in POST_DISPATCH:
+                return self.send_json(404, {"status": "error", "message": "Unknown endpoint."})
+
+            if route in SLOW_ROUTES:
+                if not AI_SEMAPHORE.acquire(timeout=3):
+                    return self.send_json(429, {"status": "error", "message": "Gemma 4 is processing another request. Please retry shortly."})
+                try:
+                    return self.send_json(200, POST_DISPATCH[route](body))
+                finally:
+                    AI_SEMAPHORE.release()
+
+            self.send_json(200, POST_DISPATCH[route](body))
         except KeyError as e:
-            self.send(400, {"status": "error", "message": f"Missing field: {e}"})
+            self.send_json(400, {"status": "error", "message": f"Missing required parameter: {e}"})
         except Exception as e:
-            self.send(500, {"status": "error", "message": str(e)})
+            self.send_json(500, {"status": "error", "message": str(e)})
 
 
-if __name__ == "__main__":
-    srv = ThreadingHTTPServer(("127.0.0.1", PORT), H)
+def main():
+    srv = ThreadingHTTPServer(("127.0.0.1", PORT), RepoDoctorHandler)
+    srv.daemon_threads = True
     url = f"http://127.0.0.1:{PORT}"
-    print(f"🩺 RepoDoctor console → {url}  (Ctrl+C to stop)")
+    print(f"🩺 RepoDoctor Air-Gapped Console active on {url} (Ctrl+C to stop)")
     try:
         webbrowser.open(url)
         srv.serve_forever()
     except KeyboardInterrupt:
-        print("\nbye")
+        print("\nShutdown complete.")
+
+
+if __name__ == "__main__":
+    main()

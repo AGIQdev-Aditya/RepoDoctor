@@ -297,7 +297,7 @@ def run_agent_loop(
                 "dispatch_report": dispatch_report
             })
 
-            tool_content = json.dumps(dispatch_report.get("payload", {}).get("result", dispatch_report))
+            tool_content = json.dumps(dispatch_report.get("payload", {}).get("result", dispatch_report))[:6000]
             messages.append({
                 "role": "tool",
                 "content": tool_content

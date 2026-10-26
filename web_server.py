@@ -23,6 +23,22 @@ def g(o, k):
     return o.get(k) if hasattr(o, "get") else getattr(o, k, None)
 
 
+def available_repos():
+    """List current and sibling project repositories for 1-click UI switching."""
+    parent = ROOT.parent
+    repos = [
+        {"name": "RepoDoctor (Current Project)", "path": str(ROOT)},
+        {"name": "workshop-agent (KT Baseline)", "path": str(parent / "workshop-agent")}
+    ]
+    try:
+        for d in sorted(parent.iterdir()):
+            if d.is_dir() and d not in (ROOT, parent / "workshop-agent") and not d.name.startswith((".", "venv")):
+                repos.append({"name": d.name, "path": str(d)})
+    except Exception:
+        pass
+    return {"current": str(ROOT), "repos": repos}
+
+
 def status():
     base = {"root": str(ROOT), "default": engine.default_model}
     try:
@@ -93,6 +109,8 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, (ROOT / "web" / "index.html").read_bytes(), "text/html")
             if u.path == "/api/status":
                 return self.send(200, status())
+            if u.path == "/api/repos":
+                return self.send(200, available_repos())
             if u.path == "/api/files":
                 return self.send(200, py_files(q["repo"]))
             if u.path == "/api/file":

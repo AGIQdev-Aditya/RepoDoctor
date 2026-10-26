@@ -61,7 +61,10 @@ pre.code{background:rgba(0,0,0,.35);border:1px solid var(--b);border-radius:10px
 <div class="app">
 <aside>
 <div class="logo"><span>🩺</span><div><b>RepoDoctor</b><small>offline code intelligence</small></div></div>
-<label>Repository</label><div class="row"><input id="repo" spellcheck="false" placeholder="/path/to/repo"><button class="btn" id="scan">Scan</button></div>
+<label>Repository</label>
+<select id="repo-sel" style="margin-bottom:6px"><option value="">📁 Loading folders…</option></select>
+<div class="row"><input id="repo" spellcheck="false" placeholder="/path/to/repo"><button class="btn" id="scan">Scan</button></div>
+<div class="chips" id="repo-chips" style="margin-top:5px;gap:4px"></div>
 <label>Model</label><select id="model"><option>…</option></select>
 <nav id="nav"></nav><div class="grow"></div>
 <div class="pill" id="st"><span class="dot"></span><span>checking…</span></div>
@@ -204,5 +207,13 @@ async function poll(){const st=$('#st');try{const s=await(await fetch('/api/stat
  st.className='pill '+(s.ollama?'ok':'bad');st.lastChild.textContent=s.ollama?`Ollama online · ${s.models.length} models`:'Ollama offline · scans still work';return s}
  catch{st.className='pill bad';st.lastChild.textContent='Server unreachable'}}
 $('#model').onchange=e=>ls.set('rdModel',e.target.value);
-(async()=>{const s=await poll();setInterval(poll,10000);go(ls.get('rdView','ov'));$('#repo').value=ls.get('rdRepo',s?s.root:'');if($('#repo').value)scan()})();
+async function loadRepos(){
+ try{const r=await(await fetch('/api/repos')).json(),sel=$('#repo-sel');
+  sel.innerHTML='<option value="">📁 Choose Repository…</option>'+(r.repos||[]).map(x=>`<option value="${esc(x.path)}">${esc(x.name)}</option>`).join('')+'<option value="custom">✏️ Enter Custom Path…</option>';
+  $('#repo-chips').innerHTML=(r.repos||[]).slice(0,3).map(x=>`<button class="chip" data-p="${esc(x.path)}" style="cursor:pointer;padding:3px 8px;font-size:11px">📁 ${esc(x.name.split(' ')[0])}</button>`).join('');
+  sel.onchange=e=>{if(e.target.value&&e.target.value!=='custom'){$('#repo').value=e.target.value;scan()}};
+  $('#repo-chips').onclick=e=>{const b=e.target.closest('button');if(b&&b.dataset.p){$('#repo').value=b.dataset.p;scan()}}}
+ catch(e){}}
+
+(async()=>{loadRepos();const s=await poll();setInterval(poll,10000);go(ls.get('rdView','ov'));$('#repo').value=ls.get('rdRepo',s?s.root:'');if($('#repo').value)scan()})();
 </script></body></html>

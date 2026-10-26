@@ -4,6 +4,7 @@ Connects Google Gemma (via Ollama) to deterministic diagnostic tools.
 """
 
 import sys
+import time
 import json
 import inspect
 import logging
@@ -160,6 +161,28 @@ def dispatch_tool(tool_name: str, kwargs: Dict[str, Any]) -> Dict[str, Any]:
     return {"status": "success", "gate": 3, "payload": exec_result}
 
 
+def direct_diagnose_repo(repo_path: str) -> Dict[str, Any]:
+    """
+    Executes all primary diagnostic tools directly through the 3 Security Gates
+    to provide instant (<1s) dashboard state for the Streamlit UI.
+    """
+    logger.info(f"Running direct 3-Gate diagnostic suite on: {repo_path}")
+    t0 = time.time()
+    
+    overview = dispatch_tool("get_repo_overview", {"repo_path": repo_path})
+    security = dispatch_tool("scan_security_and_secrets", {"repo_path": repo_path})
+    architecture = dispatch_tool("map_architecture_dependencies", {"repo_path": repo_path})
+    
+    return {
+        "status": "success",
+        "repo_path": repo_path,
+        "duration_sec": round(time.time() - t0, 3),
+        "overview": overview.get("payload", {}).get("result", {}),
+        "security": security.get("payload", {}).get("result", {}),
+        "architecture": architecture.get("payload", {}).get("result", {})
+    }
+
+
 # ============================================================================
 # SUPERVISOR MULTI-TURN AGENT LOOP
 # ============================================================================
@@ -190,6 +213,7 @@ def run_agent_loop(
     tool_ledger = []
     thinking_traces = []
     step = 0
+    start_time = time.time()
 
     while step < max_steps:
         step += 1
@@ -199,7 +223,8 @@ def run_agent_loop(
             response = ollama.chat(
                 model=model,
                 messages=messages,
-                tools=TOOL_SCHEMAS
+                tools=TOOL_SCHEMAS,
+                options={"temperature": 0.2}
             )
         except Exception as e:
             logger.error(f"Ollama chat error: {e}")
@@ -207,7 +232,8 @@ def run_agent_loop(
                 "status": "error",
                 "message": f"Inference error with model '{model}': {str(e)}",
                 "tool_ledger": tool_ledger,
-                "thinking_trace": "\n".join(thinking_traces)
+                "thinking_trace": "\n".join(thinking_traces),
+                "duration_sec": round(time.time() - start_time, 2)
             }
 
         msg = response.get("message", {})
@@ -215,13 +241,10 @@ def run_agent_loop(
         tool_calls = msg.get("tool_calls", [])
 
         if content and "<think>" in content:
-            # Capture thinking trace if model embeds it
             thinking_traces.append(content)
 
-        # Append assistant response to message history
         messages.append(msg)
 
-        # If model did not request any tools, we have reached the final answer
         if not tool_calls:
             logger.info("Supervisor loop complete: Final response synthesized.")
             return {
@@ -230,16 +253,30 @@ def run_agent_loop(
                 "tool_ledger": tool_ledger,
                 "thinking_trace": "\n".join(thinking_traces),
                 "steps_taken": step,
-                "model": model
+                "model": model,
+                "duration_sec": round(time.time() - start_time, 2)
             }
 
-        # Process tool calls
         for tc in tool_calls:
             fn = tc.get("function", {})
             fn_name = fn.get("name", "")
             fn_args = fn.get("arguments", {})
 
-            # Ensure repo_path is supplied if tool requires it and model omitted it
+            # Guard against string-encoded JSON arguments
+            if isinstance(fn_args, str):
+                try:
+                    fn_args = json.loads(fn_args)
+                except Exception:
+                    fn_args = {}
+
+            # Type coerce integer arguments if model passed strings
+            if "top_k" in fn_args:
+                try:
+                    fn_args["top_k"] = int(fn_args["top_k"])
+                except (ValueError, TypeError):
+                    fn_args["top_k"] = 3
+
+            # Ensure repo_path is supplied if tool requires it
             if "repo_path" in fn_args and not fn_args["repo_path"]:
                 fn_args["repo_path"] = repo_path
             elif "repo_path" not in fn_args and fn_name in {"get_repo_overview", "scan_security_and_secrets", "map_architecture_dependencies", "search_codebase"}:
@@ -254,28 +291,31 @@ def run_agent_loop(
                 "dispatch_report": dispatch_report
             })
 
-            # Format tool result for Ollama message protocol
             tool_content = json.dumps(dispatch_report.get("payload", {}).get("result", dispatch_report))
             messages.append({
                 "role": "tool",
                 "content": tool_content
             })
 
-    # If max steps exceeded, request final synthesis
     logger.warning("Max supervisor steps reached. Synthesizing final summary.")
     messages.append({
         "role": "user",
         "content": "Please summarize your findings based on the completed tool executions."
     })
-    final_res = ollama.chat(model=model, messages=messages)
+    final_res = ollama.chat(model=model, messages=messages, options={"temperature": 0.2})
     return {
         "status": "success",
         "final_response": final_res.get("message", {}).get("content", "Diagnostic complete."),
         "tool_ledger": tool_ledger,
         "thinking_trace": "\n".join(thinking_traces),
         "steps_taken": step,
-        "model": model
+        "model": model,
+        "duration_sec": round(time.time() - start_time, 2)
     }
+
+
+# Friendly alias for UI integration
+ask_repo_doctor = run_agent_loop
 
 
 if __name__ == "__main__":

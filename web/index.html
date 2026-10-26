@@ -62,6 +62,8 @@ pre.code{background:rgba(0,0,0,.35);border:1px solid var(--b);border-radius:10px
 <aside>
 <div class="logo"><span>🩺</span><div><b>RepoDoctor</b><small>offline code intelligence</small></div></div>
 <label>Repository</label>
+<button class="btn sm" id="btn-browse" style="width:100%;margin-bottom:8px;background:rgba(255,255,255,.07);border:1px solid var(--b);display:flex;align-items:center;justify-content:center;gap:6px">📂 Open File Explorer…</button>
+<input type="file" id="browser-picker" webkitdirectory directory style="display:none">
 <select id="repo-sel" style="margin-bottom:6px"><option value="">📁 Loading folders…</option></select>
 <div class="row"><input id="repo" spellcheck="false" placeholder="/path/to/repo"><button class="btn" id="scan">Scan</button></div>
 <div class="chips" id="repo-chips" style="margin-top:5px;gap:4px"></div>
@@ -117,6 +119,15 @@ async function scan(){const repo=$('#repo').value.trim();if(!repo)return toast('
   api('/api/complexity',{repo:d.repo_path}).then(c=>{S.cx=c;renderCx()}).catch(()=>{});toast('Scan finished in '+d.duration_sec+'s','ok')}
  catch(e){toast(e.message)}finally{b.disabled=false;b.textContent='Scan'}}
 $('#scan').onclick=scan;$('#repo').onkeydown=e=>{if(e.key==='Enter')scan()};
+$('#btn-browse').onclick=async()=>{
+ const b=$('#btn-browse');b.disabled=true;b.textContent='Opening Explorer…';
+ try{const r=await api('/api/browse');
+  if(r.status==='success'&&r.path){$('#repo').value=r.path;toast('Selected: '+r.path.split('/').pop(),'ok');scan()}
+  else if(r.status==='error'){$('#browser-picker').click()}
+ }catch(e){$('#browser-picker').click()}
+ finally{b.disabled=false;b.textContent='📂 Open File Explorer…'}
+};
+$('#browser-picker').onchange=e=>{if(e.target.files.length){const f=e.target.files[0].webkitRelativePath.split('/')[0];toast('Selected folder: '+f,'ok')}};
 
 /* ---------- overview ---------- */
 function renderOv(){const d=S.diag,o=d.overview||{},s=d.security||{},a=d.architecture||{},sc=s.security_score??0,col=sc>=75?'var(--ok)':sc>=50?'var(--w)':'var(--bad)',C=2*Math.PI*54;

@@ -3,7 +3,7 @@
 Run:  python web_server.py      (then open http://127.0.0.1:8502)
 Wraps RepoDoctorEngine; does not modify engine.py / tools.py / ui.py.
 """
-import json, os, webbrowser
+import json, os, webbrowser, subprocess
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -21,6 +21,23 @@ CSP = "default-src 'self' 'unsafe-inline' data:; connect-src 'self'"
 
 def g(o, k):
     return o.get(k) if hasattr(o, "get") else getattr(o, k, None)
+
+
+def browse_folder():
+    """Opens native OS file explorer dialog using zenity."""
+    try:
+        parent_dir = str(ROOT.parent)
+        cmd = ["zenity", "--file-selection", "--directory", "--title=Select Codebase to Audit", f"--filename={parent_dir}/"]
+        # Ensure DISPLAY and WAYLAND_DISPLAY are passed to zenity
+        env = os.environ.copy()
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90, env=env)
+        if proc.returncode == 0:
+            chosen = proc.stdout.strip()
+            if chosen and os.path.isdir(chosen):
+                return {"status": "success", "path": chosen}
+        return {"status": "cancelled", "path": ""}
+    except Exception as e:
+        return {"status": "error", "message": str(e), "path": ""}
 
 
 def available_repos():
@@ -109,6 +126,8 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, (ROOT / "web" / "index.html").read_bytes(), "text/html")
             if u.path == "/api/status":
                 return self.send(200, status())
+            if u.path == "/api/browse":
+                return self.send(200, browse_folder())
             if u.path == "/api/repos":
                 return self.send(200, available_repos())
             if u.path == "/api/files":

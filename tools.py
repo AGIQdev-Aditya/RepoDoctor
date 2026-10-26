@@ -157,6 +157,12 @@ def scan_security_and_secrets(repo_path: str, **kwargs) -> Dict[str, Any]:
 
             for line_idx, line in enumerate(lines, 1):
                 clean_line = line.strip()
+                # Skip comments and rule definition lines in the scanner itself
+                if clean_line.startswith(("#", "//", "/*", "*")):
+                    continue
+                if 'r"\\b' in line or "r'\\b" in line or 'r"(?:' in line or "r'(?:" in line:
+                    continue
+
                 # 1. Secret Scanning
                 for secret_name, pattern in SECRET_PATTERNS:
                     if re.search(pattern, line):

@@ -22,3 +22,7 @@ htmlcov/
 # IDE
 .vscode/
 .idea/
+
+# User uploads & ephemeral demo files
+uploaded_repos/
+*.pdf

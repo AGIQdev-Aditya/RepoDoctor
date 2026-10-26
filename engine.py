@@ -169,6 +169,8 @@ class RepoDoctorEngine:
         use_model = model or self.default_model
         prompt = (
             "You are an expert Python QA engineer. Write a complete, robust pytest test suite for the following Python code.\n"
+            "CRITICAL IMPORT REQUIREMENT: The code under test is saved in an isolated sandbox module named 'target_module'. "
+            "Your test file MUST import the functions or classes being tested directly from 'target_module' (e.g. 'from target_module import ...').\n"
             "Include test cases for standard inputs, edge cases (empty/null), and expected exceptions.\n"
             "Return ONLY executable Python test code inside a single ```python code block. Do not include commentary outside the block.\n\n"
             f"TARGET CODE:\n{function_code}\n"

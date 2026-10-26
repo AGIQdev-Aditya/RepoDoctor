@@ -55,14 +55,19 @@ _EMBEDDING_CACHE: Dict[str, Tuple[float, List[float]]] = {}
 
 
 def _safe_resolve_path(repo_path: str, subpath: str = "") -> Path:
-    """Resolve and enforce boundary checks to prevent path traversal."""
+    """Resolve and enforce boundary checks using Path.is_relative_to to prevent path traversal."""
     base = Path(repo_path).resolve()
     if not base.exists():
         raise FileNotFoundError(f"Repository directory does not exist: {repo_path}")
     if subpath:
         target = (base / subpath).resolve()
-        if not str(target).startswith(str(base)):
-            raise PermissionError(f"Path traversal detected: {subpath} attempts to leave {base}")
+        try:
+            if not target.is_relative_to(base):
+                raise PermissionError(f"Path traversal detected: {subpath} attempts to leave {base}")
+        except AttributeError:
+            # Fallback for Python < 3.9
+            if not str(target).startswith(str(base) + os.sep) and target != base:
+                raise PermissionError(f"Path traversal detected: {subpath} attempts to leave {base}")
         return target
     return base
 
@@ -156,13 +161,16 @@ def scan_security_and_secrets(repo_path: str, **kwargs) -> Dict[str, Any]:
                     continue
 
                 for secret_name, pattern in SECRET_PATTERNS:
-                    if re.search(pattern, line):
-                        masked = clean_line[:30] + "... [REDACTED]"
+                    m = re.search(pattern, line)
+                    if m:
+                        matched_val = m.group(0)
+                        masked_str = matched_val[:2] + ("*" * max(6, len(matched_val) - 4)) + matched_val[-2:]
+                        masked_snippet = clean_line.replace(matched_val, masked_str)
                         findings_secrets.append({
                             "type": secret_name,
                             "file": rel_path,
                             "line": line_idx,
-                            "snippet": masked,
+                            "snippet": masked_snippet[:140],
                             "severity": "Critical"
                         })
                 

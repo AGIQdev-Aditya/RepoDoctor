@@ -1,0 +1,208 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RepoDoctor</title>
+<style>
+:root{--bg:#07090f;--b:rgba(255,255,255,.09);--t:#e6e9f2;--m:#8b93a7;--a:#7c5cff;--c:#22d3ee;--ok:#34d399;--w:#fbbf24;--bad:#fb7185;color-scheme:dark}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--t);font:14px/1.55 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif}
+code,pre,textarea,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+.bg{position:fixed;inset:0;z-index:-1;overflow:hidden}.bg i{position:absolute;width:46vw;height:46vw;border-radius:50%;filter:blur(110px);opacity:.26;animation:dr 22s ease-in-out infinite alternate}.bg i:first-child{background:var(--a);top:-14vw;left:-10vw}.bg i:last-child{background:var(--c);bottom:-20vw;right:-8vw;animation-delay:-9s}
+@keyframes dr{to{transform:translate(8vw,6vw) scale(1.15)}}
+#bar{position:fixed;top:0;left:0;height:2px;width:0;background:linear-gradient(90deg,var(--a),var(--c));z-index:9;opacity:0;transition:opacity .3s}#bar.on{opacity:1;width:88%;transition:width 14s cubic-bezier(.1,.7,.2,1)}
+.app{display:grid;grid-template-columns:264px 1fr;min-height:100vh}
+aside{position:sticky;top:0;height:100vh;padding:20px 16px;border-right:1px solid var(--b);background:rgba(7,9,15,.55);backdrop-filter:blur(16px);display:flex;flex-direction:column;gap:10px}
+main{padding:28px clamp(16px,4vw,44px) 60px;max-width:1180px;width:100%}
+.logo{display:flex;gap:10px;align-items:center;margin-bottom:8px}.logo>span{font-size:26px}.logo small{display:block;color:var(--m);font-size:11px}
+label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-top:6px}
+input,select,textarea{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--b);color:var(--t);border-radius:10px;padding:9px 11px;font:inherit;font-size:13px;outline:0;transition:border-color .2s,box-shadow .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--a);box-shadow:0 0 0 3px rgba(124,92,255,.2)}
+textarea{min-height:230px;resize:vertical;margin:10px 0}select option{background:#151826}
+.row{display:flex;gap:8px;align-items:center}
+.btn{background:linear-gradient(135deg,var(--a),var(--c));color:#fff;border:0;border-radius:10px;padding:9px 15px;font-weight:600;cursor:pointer;transition:transform .15s,box-shadow .2s,opacity .2s;white-space:nowrap}.btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px -6px rgba(124,92,255,.6)}.btn:disabled{opacity:.5;cursor:wait;transform:none}.btn.sm{padding:6px 11px;font-size:12px}
+.ghost{background:0;border:1px solid var(--b);color:var(--t);border-radius:10px;padding:8px 12px;cursor:pointer;transition:background .2s}.ghost:hover{background:rgba(255,255,255,.07)}
+nav{display:flex;flex-direction:column;gap:2px;margin-top:8px}
+nav button{display:flex;align-items:center;gap:10px;background:0;border:0;color:var(--m);padding:9px 11px;border-radius:10px;cursor:pointer;font:inherit;text-align:left;transition:.2s}nav button:hover{color:var(--t);background:rgba(255,255,255,.05)}nav button.on{color:#fff;background:linear-gradient(90deg,rgba(124,92,255,.3),rgba(34,211,238,.08));box-shadow:inset 2px 0 var(--a)}
+nav kbd{margin-left:auto;font-size:10px;opacity:.4;border:1px solid var(--b);border-radius:4px;padding:0 5px}
+.grow{flex:1}
+.pill{display:flex;gap:8px;align-items:center;font-size:12px;padding:7px 11px;border-radius:99px;border:1px solid var(--b);color:var(--m)}.dot{width:8px;height:8px;border-radius:50%;background:var(--m)}
+.pill.ok{color:var(--ok);border-color:rgba(52,211,153,.3)}.pill.ok .dot{background:var(--ok);animation:pu 2s infinite}.pill.bad{color:var(--bad);border-color:rgba(251,113,133,.3)}.pill.bad .dot{background:var(--bad)}@keyframes pu{50%{opacity:.35;transform:scale(.8)}}
+.view{display:none}.view.on{display:block;animation:in .45s cubic-bezier(.2,.8,.2,1)}@keyframes in{from{opacity:0;transform:translateY(10px)}}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:22px;flex-wrap:wrap}.top2{display:flex;justify-content:space-between;align-items:center;gap:10px}
+h1{font-size:28px;letter-spacing:-.02em;background:linear-gradient(135deg,#fff,#a9b4d0);-webkit-background-clip:text;background-clip:text;color:transparent}h3{font-size:14px;margin-bottom:10px}.mut{color:var(--m)}
+.card{background:rgba(255,255,255,.045);border:1px solid var(--b);border-radius:16px;padding:18px;margin-bottom:16px;backdrop-filter:blur(8px);transition:border-color .25s}.card:hover{border-color:rgba(124,92,255,.35)}
+.grid{display:grid;gap:16px}.grid.two{grid-template-columns:1fr 1fr}.hero{grid-template-columns:200px 1fr;margin-bottom:16px}
+.ringc{display:grid;place-items:center;margin:0;text-align:center}.ringc svg,.ringc .rv{grid-area:1/1}.rv{display:flex;flex-direction:column;line-height:1.1}.rv b{font-size:38px}.ringc h5{grid-area:2/1;color:var(--m);font-weight:500}
+.trk{fill:none;stroke:rgba(255,255,255,.07);stroke-width:8}.arc{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset 1.4s cubic-bezier(.2,.8,.2,1)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.kpi{margin:0;padding:14px}.kpi b{font-size:24px;letter-spacing:-.02em}.kpi small{display:block;color:var(--m);font-size:11px;text-transform:uppercase;letter-spacing:.06em}.kpi.bad b{color:var(--bad)}.kpi.ok b{color:var(--ok)}
+.kpi,.sv,.msg{animation:in .5s both;animation-delay:calc(var(--i,0)*45ms)}
+.seg{display:flex;height:12px;border-radius:99px;overflow:hidden;gap:2px}.seg i{transform-origin:left;animation:gr .9s cubic-bezier(.2,.8,.2,1) both}@keyframes gr{from{transform:scaleX(0)}}
+.leg{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;color:var(--m);font-size:12px}.leg u{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}.leg em{font-style:normal;color:var(--t)}
+.bl{display:grid;grid-template-columns:1fr 90px 40px;gap:10px;align-items:center;font-size:12px;margin:7px 0}.bl div{height:6px;background:rgba(255,255,255,.07);border-radius:9px;overflow:hidden}.bl i{display:block;height:100%;background:linear-gradient(90deg,var(--a),var(--c));animation:gr 1s both;transform-origin:left}.bl em{font-style:normal;color:var(--m);text-align:right}.bl span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hs{padding:8px 0;border-top:1px solid var(--b);flex-wrap:wrap}.chips{display:flex;gap:6px;flex-wrap:wrap}.chips.big{margin-bottom:16px}
+.chip{font-style:normal;font-size:11px;font-weight:600;padding:2px 9px;border-radius:99px;background:rgba(255,255,255,.07);color:var(--m);border:1px solid transparent}
+.chip.Critical{background:rgba(251,113,133,.15);color:var(--bad)}.chip.High{background:rgba(249,115,22,.15);color:#fb923c}.chip.Medium,.chip.w{background:rgba(251,191,36,.13);color:var(--w)}.chip.Low{background:rgba(96,165,250,.14);color:#60a5fa}
+button.chip{cursor:pointer;padding:5px 13px;font-size:12px}button.chip.on{border-color:var(--a);color:#fff;background:rgba(124,92,255,.25)}
+details.sv{padding:0;overflow:hidden}summary{display:flex;gap:12px;align-items:center;padding:14px 18px;cursor:pointer;list-style:none;flex-wrap:wrap}summary::-webkit-details-marker{display:none}details[open]>summary{border-bottom:1px solid var(--b)}details>:not(summary){margin:14px 18px}
+pre.code{background:rgba(0,0,0,.35);border:1px solid var(--b);border-radius:10px;padding:12px;overflow:auto;white-space:pre-wrap;word-break:break-word}.rem{color:var(--m)}
+.md{line-height:1.65}.md code{background:rgba(255,255,255,.08);padding:1px 6px;border-radius:5px}.md ul{padding-left:20px}.md h3,.md h4{margin:12px 0 4px}
+.sk{height:14px;border-radius:7px;margin:10px 0;background:linear-gradient(90deg,rgba(255,255,255,.04),rgba(255,255,255,.12),rgba(255,255,255,.04));background-size:200% 100%;animation:sh 1.3s infinite}.sk.s{width:60%}@keyframes sh{to{background-position:-200% 0}}
+.empty{text-align:center;padding:48px 20px}.okc{width:56px;height:56px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;font-size:26px;background:rgba(52,211,153,.14);color:var(--ok);animation:pop .6s cubic-bezier(.3,1.6,.5,1)}@keyframes pop{from{transform:scale(0)}}
+.alert{border-color:rgba(251,113,133,.4);color:var(--bad)}.okbar{color:var(--ok);padding:12px 18px}
+.gwrap{padding:0;overflow:hidden}#gs{width:100%;height:auto;display:block;touch-action:none}
+.ed{stroke:#6b7390;stroke-width:1.4;transition:opacity .2s}.ed.cy{stroke:var(--bad);stroke-dasharray:5 4;animation:da 1s linear infinite}@keyframes da{to{stroke-dashoffset:-9}}
+.nd{cursor:grab;transition:opacity .2s}.nd circle{fill:rgba(124,92,255,.25);stroke:var(--a);stroke-width:2;transition:fill .2s}.nd:hover circle{fill:rgba(34,211,238,.4);stroke:var(--c)}.nd text{fill:var(--t);font-size:12px;text-anchor:middle;pointer-events:none}.dim{opacity:.12}
+.chat{min-height:300px}.msg{max-width:88%;padding:11px 15px;border-radius:14px;margin:10px 0;border:1px solid var(--b)}.msg.u{margin-left:auto;background:linear-gradient(135deg,rgba(124,92,255,.35),rgba(34,211,238,.15))}.msg.a{background:rgba(255,255,255,.04)}.msg small{display:block;margin-top:8px;color:var(--m)}
+.typing i{display:inline-block;width:7px;height:7px;margin-right:4px;border-radius:50%;background:var(--m);animation:ty 1s infinite}.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}@keyframes ty{50%{transform:translateY(-5px);background:var(--c)}}
+.sim{height:5px;background:rgba(255,255,255,.07);border-radius:9px;overflow:hidden;width:120px}.sim i{display:block;height:100%;background:var(--ok)}
+#toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:10}.toast{background:#151826;border:1px solid var(--bad);border-left-width:4px;padding:11px 15px;border-radius:10px;max-width:360px;animation:in .3s;transition:.4s}.toast.ok{border-color:var(--ok)}.toast.out{opacity:0;transform:translateX(30px)}
+.g{color:var(--ok)}.r{color:var(--bad)}
+@media(max-width:900px){.app{grid-template-columns:1fr}aside{position:static;height:auto}.grid.two,.hero{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body>
+<div class="bg"><i></i><i></i></div><div id="bar"></div>
+<div class="app">
+<aside>
+<div class="logo"><span>🩺</span><div><b>RepoDoctor</b><small>offline code intelligence</small></div></div>
+<label>Repository</label><div class="row"><input id="repo" spellcheck="false" placeholder="/path/to/repo"><button class="btn" id="scan">Scan</button></div>
+<label>Model</label><select id="model"><option>…</option></select>
+<nav id="nav"></nav><div class="grow"></div>
+<div class="pill" id="st"><span class="dot"></span><span>checking…</span></div>
+<button class="ghost" id="exp">⬇ Export report</button>
+</aside>
+<main>
+<section class="view" id="v-ov"></section><section class="view" id="v-sec"></section><section class="view" id="v-arch"></section>
+<section class="view" id="v-test">
+<header class="top"><div><h1>Test lab</h1><p class="mut">Gemma writes pytest suites · you run them in a throwaway sandbox</p></div></header>
+<div class="grid two"><div class="card"><div class="top2"><h3>Code under test</h3><select id="tf" style="width:auto;max-width:60%"></select></div><textarea id="tc" spellcheck="false" placeholder="Pick a file or paste Python…"></textarea><button class="btn" id="syn">✦ Synthesize tests</button></div>
+<div class="card"><div class="top2"><h3>Generated pytest</h3><span class="mut">editable</span></div><textarea id="tt" spellcheck="false" placeholder="Tests appear here…"></textarea><button class="btn" id="run">▶ Run in sandbox</button></div></div><div id="tr"></div></section>
+<section class="view" id="v-find">
+<header class="top"><div><h1>Code search</h1><p class="mut">Semantic search with local embeddings</p></div></header>
+<div class="row" style="margin-bottom:16px"><input id="q" placeholder="e.g. where are secrets detected?"><input id="k" type="number" min="1" max="8" value="4" style="width:80px"><button class="btn" id="go">Search</button></div><div id="fr"></div></section>
+<section class="view" id="v-ai">
+<header class="top"><div><h1>Copilot</h1><p class="mut">Gemma calls the audit tools through the 3-gate supervisor</p></div></header>
+<div class="chips big" id="qp"></div><div class="chat" id="chat"></div>
+<div class="row"><textarea id="ci" style="min-height:48px;height:48px;margin:0" placeholder="Ask about this repository… (Enter to send)"></textarea><button class="btn" id="send">Send</button></div></section>
+</main></div><div id="toasts"></div>
+<script>
+const $=(s,e=document)=>e.querySelector(s),$$=(s,e=document)=>[...e.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ls={get:(k,d)=>{try{return localStorage.getItem(k)??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
+const S={diag:null,cx:null,busy:0,ml:''},PAL=['#7c5cff','#22d3ee','#34d399','#fbbf24','#fb7185','#f472b6','#60a5fa','#a3e635'];
+const toast=(m,t='bad')=>{const e=document.createElement('div');e.className='toast '+t;e.textContent=m;$('#toasts').append(e);setTimeout(()=>e.classList.add('out'),4200);setTimeout(()=>e.remove(),4700)};
+async function api(p,body,ms=240000){
+ const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);S.busy++;$('#bar').classList.add('on');
+ try{const r=await fetch(p,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','X-RD':'1'},body:body?JSON.stringify(body):undefined,signal:c.signal});
+  const d=(r.headers.get('content-type')||'').includes('json')?await r.json():await r.text();
+  if(!r.ok)throw new Error(d.message||'Request failed ('+r.status+')');return d}
+ catch(e){throw new Error(e.name==='AbortError'?'Timed out. The model may still be loading.':e.message==='Failed to fetch'?'Server unreachable. Is web_server.py running?':e.message)}
+ finally{clearTimeout(t);if(!--S.busy)$('#bar').classList.remove('on')}}
+function md(t){const bl=[];t=esc(t).replace(/```(\w*)\n?([\s\S]*?)```/g,(_,l,c)=>{bl.push(c);return`\u0001${bl.length-1}\u0001`});
+ t=t.replace(/^### (.*)$/gm,'<h4>$1</h4>').replace(/^#{1,2} (.*)$/gm,'<h3>$1</h3>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/^[-*] (.*)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,m=>'<ul>'+m+'</ul>').replace(/\n{2,}/g,'<br><br>').replace(/\n/g,'<br>');
+ return t.replace(/\u0001(\d+)\u0001/g,(_,i)=>`<pre class="code">${bl[i]}</pre>`)}
+function count(el,to,dc=0){const t0=performance.now(),f=n=>{const p=Math.min(1,(n-t0)/900),e=1-Math.pow(1-p,3);el.textContent=(to*e).toLocaleString(undefined,{minimumFractionDigits:dc,maximumFractionDigits:dc});if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)}
+const empty=(i,t,s)=>`<div class="card empty"><div style="font-size:40px">${i}</div><h3>${t}</h3><p class="mut">${s}</p></div>`;
+const NAV=[['ov','Overview','◈'],['sec','Security','⛨'],['arch','Architecture','⌬'],['test','Test lab','⚗'],['find','Code search','⌕'],['ai','Copilot','✦']];
+$('#nav').innerHTML=NAV.map(([k,n,i],x)=>`<button data-v="${k}"><span>${i}</span>${n}<kbd>${x+1}</kbd></button>`).join('');
+function go(k){$$('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+k));$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===k));ls.set('rdView',k);if(k==='arch')drawGraph()}
+$('#nav').onclick=e=>{const b=e.target.closest('button');if(b)go(b.dataset.v)};
+addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)||e.metaKey||e.ctrlKey)return;const n=NAV[+e.key-1];if(n)go(n[0])});
+['ov','sec','arch'].forEach(k=>$('#v-'+k).innerHTML=empty('🩺','Ready when you are','Enter a repository path and press Scan. Scans work with Ollama switched off.'));
+
+/* ---------- scan ---------- */
+async function scan(){const repo=$('#repo').value.trim();if(!repo)return toast('Enter a repository path');ls.set('rdRepo',repo);
+ const b=$('#scan');b.disabled=true;b.textContent='Scanning…';
+ try{const d=await api('/api/diagnose',{repo});if(d.status==='error')throw new Error(d.message);S.diag=d;S.cx=null;G=null;
+  renderOv();renderSec();$('#v-arch').innerHTML='';if($('#v-arch').classList.contains('on'))drawGraph();loadFiles();
+  api('/api/complexity',{repo:d.repo_path}).then(c=>{S.cx=c;renderCx()}).catch(()=>{});toast('Scan finished in '+d.duration_sec+'s','ok')}
+ catch(e){toast(e.message)}finally{b.disabled=false;b.textContent='Scan'}}
+$('#scan').onclick=scan;$('#repo').onkeydown=e=>{if(e.key==='Enter')scan()};
+
+/* ---------- overview ---------- */
+function renderOv(){const d=S.diag,o=d.overview||{},s=d.security||{},a=d.architecture||{},sc=s.security_score??0,col=sc>=75?'var(--ok)':sc>=50?'var(--w)':'var(--bad)',C=2*Math.PI*54;
+ const lo=Object.entries(o.loc_by_extension||{}).sort((x,y)=>y[1]-x[1]),tot=lo.reduce((n,[,v])=>n+v,0)||1,tf=o.top_5_largest_files||[],mx=Math.max(1,...tf.map(f=>f.lines));
+ const K=[['Files',o.total_files],['Lines of code',o.total_lines_of_code],['Comment density',o.comment_density_pct,1,'%'],['Secrets',s.critical_secrets_found,0,'',s.critical_secrets_found?'bad':'ok'],['Vulnerabilities',s.vulnerabilities_found,0,'',s.vulnerabilities_found?'bad':'ok'],['Modules',a.total_python_modules],['Import cycles',a.circular_dependencies_detected,0,'',a.circular_dependencies_detected?'bad':'ok'],['Avg complexity','…',0,'','','cxavg']];
+ $('#v-ov').innerHTML=`<header class="top"><div><h1>${esc(o.repo_name||'Repository')}</h1><p class="mut mono">${esc(d.repo_path)}</p></div><button class="btn" id="prb">✦ Generate PR review</button></header>
+ <div class="grid hero"><div class="card ringc"><svg viewBox="0 0 120 120" width="150"><circle cx="60" cy="60" r="54" class="trk"/><circle id="ring" cx="60" cy="60" r="54" class="arc" transform="rotate(-90 60 60)" style="stroke:${col};stroke-dasharray:${C};stroke-dashoffset:${C}"/></svg><div class="rv"><b style="color:${col}">${esc(s.grade||'N/A')}</b><small class="mut"><span data-n="${sc}">0</span>/100</small></div><h5>Security score</h5></div>
+ <div class="kpis">${K.map(([l,v,dc=0,u='',c='',id=''],i)=>`<div class="card kpi ${c}" style="--i:${i}"><b ${id?`id="${id}"`:`data-n="${v??0}" data-d="${dc}"`}>${id?v:0}</b>${u}<small>${l}</small></div>`).join('')}</div></div>
+ <div class="grid two"><div class="card"><h3>Languages</h3><div class="seg">${lo.map(([e,v],i)=>`<i style="width:${v/tot*100}%;background:${PAL[i%8]}" title="${esc(e)}"></i>`).join('')}</div><div class="leg">${lo.map(([e,v],i)=>`<span><u style="background:${PAL[i%8]}"></u>${esc(e)} <em>${(v/tot*100).toFixed(1)}%</em></span>`).join('')}</div></div>
+ <div class="card"><h3>Largest files</h3>${tf.map(f=>`<div class="bl"><span class="mono">${esc(f.file)}</span><div><i style="width:${f.lines/mx*100}%"></i></div><em>${f.lines}</em></div>`).join('')||'<p class="mut">No files.</p>'}</div></div>
+ <div class="card"><h3>Complexity hotspots</h3><div id="cx"><div class="sk"></div><div class="sk s"></div></div></div><div id="pr"></div>`;
+ requestAnimationFrame(()=>{$('#ring').style.strokeDashoffset=C*(1-sc/100)});$$('[data-n]',$('#v-ov')).forEach(e=>count(e,+e.dataset.n,+(e.dataset.d||0)));$('#prb').onclick=pr}
+function renderCx(){const c=S.cx;if(!$('#cx')||!c)return;if(c.status==='error')return $('#cx').innerHTML=`<p class="mut">${esc(c.message)}</p>`;
+ $('#cxavg')&&count($('#cxavg'),c.average_complexity||0,1);const h=c.hotspots||[];
+ $('#cx').innerHTML=h.length?h.map(x=>`<div class="row hs"><b class="mono">${esc(x.function)}()</b><span class="mut mono">${esc(x.file)}:${x.line}</span><span class="chips">${x.issues.map(i=>`<em class="chip w">${esc(i)}</em>`).join('')}</span></div>`).join(''):'<p class="mut">✓ No hotspots. Functions are small and simple.</p>'}
+async function pr(e){const b=e.target;b.disabled=true;b.textContent='Gemma is reviewing…';$('#pr').innerHTML='<div class="card"><div class="sk"></div><div class="sk"></div><div class="sk s"></div></div>';
+ try{const r=await api('/api/pr',{repo:S.diag.repo_path,model:$('#model').value});if(r.status==='error')throw new Error(r.pr_comment);
+  $('#pr').innerHTML=`<div class="card"><div class="top2"><h3>PR review <small class="mut">${r.duration_sec}s · ${esc(r.model)}</small></h3><button class="ghost" id="cp">Copy markdown</button></div><div class="md">${md(r.pr_comment)}</div></div>`;
+  $('#cp').onclick=()=>navigator.clipboard.writeText(r.pr_comment).then(()=>toast('Copied','ok'))}
+ catch(x){$('#pr').innerHTML='';toast(x.message)}b.disabled=false;b.textContent='✦ Generate PR review'}
+$('#exp').onclick=async()=>{if(!S.diag)return toast('Scan a repository first');try{const t=await api('/api/report?repo='+encodeURIComponent(S.diag.repo_path)),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/markdown'}));a.download='REPO_DOCTOR_AUDIT_REPORT.md';a.click()}catch(e){toast(e.message)}};
+
+/* ---------- security ---------- */
+let sevF='All';
+function renderSec(){const s=S.diag.security||{},I=[...(s.secrets||[]).map(x=>({sev:'Critical',t:x.type,f:x.file,l:x.line,sn:x.snippet,r:'Revoke and rotate this credential, then load it from an environment variable or secret manager.',sec:1})),...(s.vulnerabilities||[]).map(x=>({sev:x.severity,t:x.vulnerability,f:x.file,l:x.line,sn:x.snippet,r:x.remediation}))];S.items=I;
+ const cn=k=>I.filter(i=>k==='All'||i.sev===k).length,L=I.map((x,i)=>({...x,i})).filter(x=>sevF==='All'||x.sev===sevF);
+ $('#v-sec').innerHTML=`<header class="top"><div><h1>Security</h1><p class="mut">Hardcoded secrets and dangerous patterns · no network needed</p></div></header><div class="chips big" id="sf">${['All','Critical','High','Medium','Low'].map(k=>`<button class="chip ${k===sevF?'on':''}" data-k="${k}">${k} ${cn(k)}</button>`).join('')}</div>
+ <div id="sl">${L.length?L.map((x,n)=>`<details class="card sv" style="--i:${n}" ${n?'':'open'}><summary><em class="chip ${x.sev}">${x.sev}</em><b>${esc(x.t)}</b><span class="mono mut">${esc(x.f)}:${x.l}</span></summary><pre class="code">${esc(x.sn)}</pre><p class="rem">💡 ${esc(x.r)}</p>${x.sec?'':`<button class="btn sm" data-p="${x.i}">✦ Generate AI patch</button>`}<div class="md" id="pt${x.i}"></div></details>`).join(''):`<div class="card empty"><div class="okc">✓</div><h3>${I.length?'Nothing at this severity':'All clear'}</h3><p class="mut">No hardcoded secrets or dangerous calls found.</p></div>`}</div>`;
+ $('#sf').onclick=e=>{const b=e.target.closest('button');if(b){sevF=b.dataset.k;renderSec()}};
+ $('#sl').onclick=async e=>{const b=e.target.closest('[data-p]');if(!b)return;const x=S.items[b.dataset.p],o=$('#pt'+b.dataset.p);b.disabled=true;o.innerHTML='<div class="sk"></div><div class="sk s"></div>';
+  try{const r=await api('/api/patch',{vulnerability:x.t,snippet:x.sn,file:x.f,model:$('#model').value});if(r.status==='error')throw new Error(r.message);o.innerHTML=md(r.fix_analysis)}catch(er){o.innerHTML='';toast(er.message)}b.disabled=false}}
+
+/* ---------- architecture graph (own force layout, no libraries) ---------- */
+let G=null,raf=0,heatN=0;const rad=n=>10+Math.min(n.d,6)*2.2;
+function buildGraph(){const m=(S.diag.architecture||{}).mermaid_diagram||'',N={},E=[],nd=(id,l)=>N[id]||(N[id]={id,l:l.replace(/\.py$/,''),x:450,y:260,vx:0,vy:0,d:0});
+ for(const r of m.matchAll(/(\w+)\["([^"]+)"\]\s*--(circular)?-->\s*(\w+)\["([^"]+)"\]/g)){const s=nd(r[1],r[2]),t=nd(r[4],r[5]);E.push({s,t,c:!!r[3]});s.d++;t.d++}
+ for(const r of m.matchAll(/^\s*(\w+)\["([^"]+)"\]\s*$/gm))nd(r[1],r[2]);
+ G={N:Object.values(N),E,drag:null};G.N.forEach((n,i)=>{const a=i/G.N.length*6.283;n.x=450+Math.cos(a)*190;n.y=260+Math.sin(a)*150})}
+function drawGraph(){if(!S.diag)return;const a=S.diag.architecture||{},v=$('#v-arch'),cy=a.circular_dependencies_detected||0;if(!G)buildGraph();
+ if(!$('#gs')){v.innerHTML=`<header class="top"><div><h1>Architecture</h1><p class="mut">${a.total_python_modules||0} modules · ${a.total_dependency_edges||0} dependencies · drag nodes, hover to trace</p></div></header>${cy?`<div class="card alert"><b>⚠ ${cy} circular ${cy>1?'dependencies':'dependency'}</b><div class="mono">${(a.cycles||[]).map(esc).join('<br>')}</div></div>`:'<div class="card okbar">✓ No circular dependencies</div>'}
+  <div class="card gwrap"><svg id="gs" viewBox="0 0 900 520"><defs>${[['ar','#6b7390'],['ac','#fb7185']].map(([i,c])=>`<marker id="${i}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="${c}"/></marker>`).join('')}</defs><g id="ge">${G.E.map((e,i)=>`<line id="e${i}" class="ed ${e.c?'cy':''}" marker-end="url(#${e.c?'ac':'ar'})"/>`).join('')}</g><g id="gn">${G.N.map((n,i)=>`<g class="nd" data-i="${i}"><circle r="${rad(n)}"/><text y="${rad(n)+15}">${esc(n.l)}</text></g>`).join('')}</g></svg></div>`;bindDrag()}
+ heat(320)}
+function heat(n){heatN=Math.max(heatN,n);if(!raf)raf=requestAnimationFrame(tick)}
+function tick(){raf=0;if(!G||!$('#gs'))return;const N=G.N;
+ for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){let dx=N[j].x-N[i].x,dy=N[j].y-N[i].y,d2=dx*dx+dy*dy+.01,d=Math.sqrt(d2),f=9000/d2;dx/=d;dy/=d;N[i].vx-=dx*f;N[i].vy-=dy*f;N[j].vx+=dx*f;N[j].vy+=dy*f}
+ for(const e of G.E){const dx=e.t.x-e.s.x,dy=e.t.y-e.s.y,d=Math.hypot(dx,dy)||1,f=(d-130)*.02;e.s.vx+=dx/d*f;e.s.vy+=dy/d*f;e.t.vx-=dx/d*f;e.t.vy-=dy/d*f}
+ for(const n of N){n.vx+=(450-n.x)*.004;n.vy+=(260-n.y)*.006;if(n===G.drag){n.vx=n.vy=0;continue}n.vx*=.82;n.vy*=.82;n.x=Math.max(50,Math.min(850,n.x+n.vx));n.y=Math.max(40,Math.min(470,n.y+n.vy))}
+ const gn=$('#gn').children;G.N.forEach((n,i)=>gn[i].setAttribute('transform',`translate(${n.x} ${n.y})`));
+ G.E.forEach((e,i)=>{const l=$('#e'+i),dx=e.t.x-e.s.x,dy=e.t.y-e.s.y,d=Math.hypot(dx,dy)||1,r=rad(e.t)+3;l.setAttribute('x1',e.s.x);l.setAttribute('y1',e.s.y);l.setAttribute('x2',e.t.x-dx/d*r);l.setAttribute('y2',e.t.y-dy/d*r)});
+ if(--heatN>0)raf=requestAnimationFrame(tick)}
+function hover(n){const con=new Set(n?[n]:[]);if(n)G.E.forEach(e=>{if(e.s===n)con.add(e.t);if(e.t===n)con.add(e.s)});
+ $$('#gn .nd').forEach((g,i)=>g.classList.toggle('dim',!!n&&!con.has(G.N[i])));G.E.forEach((e,i)=>$('#e'+i).classList.toggle('dim',!!n&&e.s!==n&&e.t!==n))}
+function bindDrag(){const svg=$('#gs'),pt=svg.createSVGPoint(),nodeOf=e=>{const g=e.target.closest('.nd');return g?G.N[+g.dataset.i]:null};
+ svg.onpointerdown=e=>{const n=nodeOf(e);if(n){G.drag=n;svg.setPointerCapture(e.pointerId)}};
+ svg.onpointermove=e=>{if(!G.drag)return hover(nodeOf(e));pt.x=e.clientX;pt.y=e.clientY;const p=pt.matrixTransform(svg.getScreenCTM().inverse());G.drag.x=p.x;G.drag.y=p.y;heat(60)};
+ svg.onpointerup=()=>{G.drag=null};svg.onpointerleave=()=>hover(null)}
+
+/* ---------- test lab ---------- */
+async function loadFiles(){try{const f=await api('/api/files?repo='+encodeURIComponent(S.diag.repo_path));$('#tf').innerHTML='<option value="">custom code</option>'+f.map(x=>`<option>${esc(x)}</option>`).join('')}catch{}}
+$('#tf').onchange=async e=>{if(!e.target.value)return;try{$('#tc').value=(await api(`/api/file?repo=${encodeURIComponent(S.diag.repo_path)}&path=${encodeURIComponent(e.target.value)}`)).text}catch(x){toast(x.message)}};
+$('#syn').onclick=async e=>{const code=$('#tc').value;if(!code.trim())return toast('Add some code first');const b=e.target;b.disabled=true;b.textContent='Gemma is writing tests…';
+ try{const r=await api('/api/synth',{code,model:$('#model').value});if(r.status==='error')throw new Error(r.message);$('#tt').value=r.test_code;toast('Generated in '+r.duration_sec+'s','ok')}catch(x){toast(x.message)}b.disabled=false;b.textContent='✦ Synthesize tests'};
+$('#run').onclick=async e=>{const test=$('#tt').value;if(!test.trim())return toast('No tests to run yet');const b=e.target;b.disabled=true;b.textContent='Running…';
+ try{const r=await api('/api/run',{test,code:$('#tc').value}),out=esc(r.output||r.message||'No output').replace(/(PASSED)/g,'<span class="g">$1</span>').replace(/(FAILED|ERROR)/g,'<span class="r">$1</span>');
+  $('#tr').innerHTML=`<div class="card"><div class="top2"><h3>${r.passed?'<span class="g">✓ All tests passed</span>':'<span class="r">✕ Tests failed</span>'}</h3><span class="mut">${r.duration_sec??''}s</span></div><pre class="code">${out}</pre></div>`}catch(x){toast(x.message)}b.disabled=false;b.textContent='▶ Run in sandbox'};
+
+/* ---------- search ---------- */
+$('#go').onclick=async e=>{const q=$('#q').value.trim();if(!S.diag)return toast('Scan a repository first');if(!q)return toast('Type a query');const b=e.target;b.disabled=true;$('#fr').innerHTML='<div class="card"><div class="sk"></div><div class="sk s"></div></div>';
+ try{const r=await api('/api/search',{repo:S.diag.repo_path,query:q,k:$('#k').value});if(r.status==='error')throw new Error(r.message);const R=r.results||[];
+  $('#fr').innerHTML=R.length?R.map((x,i)=>`<div class="card sv" style="--i:${i}"><div class="top2"><b class="mono">${esc(x.file)}:${x.line_start}–${x.line_end}</b><span class="row"><span class="sim"><i style="width:${Math.max(0,x.similarity_score)*100}%"></i></span><span class="mut">${x.similarity_score}</span></span></div><pre class="code" style="margin-top:10px">${esc(x.snippet)}</pre></div>`).join(''):empty('🔍','No matches','Try different words.')}
+ catch(x){$('#fr').innerHTML='';toast(x.message)}b.disabled=false};
+$('#q').onkeydown=e=>{if(e.key==='Enter')$('#go').click()};
+
+/* ---------- copilot ---------- */
+$('#qp').innerHTML=['Explain how the security audit works','Which modules depend on each other?','Where are the riskiest functions?'].map(t=>`<button class="chip">${t}</button>`).join('');
+$('#qp').onclick=e=>{const b=e.target.closest('button');if(b)ask(b.textContent)};
+function bubble(c,h){const d=document.createElement('div');d.className='msg '+c;d.innerHTML=h;$('#chat').append(d);d.scrollIntoView({behavior:'smooth',block:'end'});return d}
+async function ask(p){if(!S.diag)return toast('Scan a repository first');if(!p.trim()||S.chatting)return;S.chatting=1;$('#ci').value='';bubble('u',esc(p));const t=bubble('a','<span class="typing"><i></i><i></i><i></i></span>');
+ try{const r=await api('/api/chat',{prompt:p,repo:S.diag.repo_path,model:$('#model').value});if(r.status==='error')throw new Error(r.message||'Agent failed');
+  const tools=(r.tool_ledger||[]).map(x=>`<em class="chip w">🔧 ${esc(x.tool_name)}</em>`).join(' ');
+  t.innerHTML=md(r.final_response||'Done.')+`<small>${tools}<br>${r.steps_taken||0} steps · ${r.duration_sec||0}s</small>`}
+ catch(x){t.remove();toast(x.message)}S.chatting=0}
+$('#send').onclick=()=>ask($('#ci').value);$('#ci').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ask($('#ci').value)}};
+
+/* ---------- status + boot ---------- */
+async function poll(){const st=$('#st');try{const s=await(await fetch('/api/status')).json(),sel=$('#model'),key=s.models.join();
+ if(key!==S.ml){S.ml=key;const cur=ls.get('rdModel',s.default),L=s.models.length?s.models:[s.default];sel.innerHTML=L.map(m=>`<option ${m===cur?'selected':''}>${esc(m)}</option>`).join('')}
+ st.className='pill '+(s.ollama?'ok':'bad');st.lastChild.textContent=s.ollama?`Ollama online · ${s.models.length} models`:'Ollama offline · scans still work';return s}
+ catch{st.className='pill bad';st.lastChild.textContent='Server unreachable'}}
+$('#model').onchange=e=>ls.set('rdModel',e.target.value);
+(async()=>{const s=await poll();setInterval(poll,10000);go(ls.get('rdView','ov'));$('#repo').value=ls.get('rdRepo',s?s.root:'');if($('#repo').value)scan()})();
+</script></body></html>

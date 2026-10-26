@@ -240,8 +240,14 @@ def run_agent_loop(
         content = msg.get("content", "")
         tool_calls = msg.get("tool_calls", [])
 
-        if content and "<think>" in content:
-            thinking_traces.append(content)
+        thinking = msg.get("thinking") or getattr(msg, "thinking", None)
+        if not thinking and content and "<think>" in content:
+            try:
+                thinking = content.split("<think>")[1].split("</think>")[0].strip()
+            except Exception:
+                thinking = content
+        if thinking:
+            thinking_traces.append(str(thinking).strip())
 
         messages.append(msg)
 

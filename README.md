@@ -8,6 +8,7 @@
 ## 👥 Team
 - **Aditya Sharma** ([@AGIQdev-Aditya](https://github.com/AGIQdev-Aditya))
 - **Abhay Singh** ([@abhaysingh1230](https://github.com/abhaysingh1230))
+- **Akshay More** ([@Akshaymore1608](https://github.com/Akshaymore1608))
 
 ---
 
@@ -59,7 +60,23 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Launch the Web Console
+### Launch Options
+
+#### Option A: 1-Click Studio Web Console (Recommended)
 ```bash
-streamlit run ui.py
+./run.sh
+# Opens interactive living console at http://127.0.0.1:8502
+```
+
+#### Option B: Terminal CLI (Rich Scorecard & Tables)
+```bash
+python cli.py
+# Or generate Gemma 4 AI PR Review in Terminal:
+python cli.py --pr
+```
+
+#### Option C: Streamlit Web Dashboard
+```bash
+./run.sh --streamlit
+# Opens at http://localhost:8501
 ```

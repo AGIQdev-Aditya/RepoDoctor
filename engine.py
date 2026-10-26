@@ -90,6 +90,55 @@ class RepoDoctorEngine:
         report = dispatch_tool("scan_security_and_secrets", {"repo_path": str(path_obj)})
         return report.get("payload", {}).get("result", {})
 
+    def analyze_complexity(self, repo_path: str) -> Dict[str, Any]:
+        """Runs AST cyclomatic complexity and code smell analysis."""
+        valid, msg, path_obj = self.validate_repo_path(repo_path)
+        if not valid:
+            return {"status": "error", "message": msg, "hotspots": [], "average_complexity": 0}
+
+        report = dispatch_tool("analyze_code_complexity", {"repo_path": str(path_obj)})
+        return report.get("payload", {}).get("result", {})
+
+    def synthesize_pr_review(self, repo_path: str, model: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Gemma compiles all diagnostic findings (security, circular dependencies, complexity)
+        into a complete, formatted GitHub PR Review Comment ready to paste on GitHub.
+        """
+        valid, msg, path_obj = self.validate_repo_path(repo_path)
+        if not valid:
+            return {"status": "error", "pr_comment": msg}
+
+        diag = self.get_full_diagnosis(str(path_obj))
+        complexity = self.analyze_complexity(str(path_obj))
+        use_model = model or self.default_model
+
+        prompt = (
+            "You are a Staff Principal Software Engineer conducting a strict code review for a GitHub Pull Request.\n"
+            f"Repository: {path_obj.name}\n"
+            f"Security Grade: {diag.get('security', {}).get('grade')} ({diag.get('security', {}).get('security_score')}/100)\n"
+            f"Vulnerabilities: {json.dumps(diag.get('security', {}).get('vulnerabilities', []))}\n"
+            f"Circular Dependencies: {json.dumps(diag.get('architecture', {}).get('cycles', []))}\n"
+            f"Complexity Hotspots: {json.dumps(complexity.get('hotspots', []))}\n\n"
+            "Task: Write a comprehensive, beautifully structured GitHub PR Review Comment in Markdown.\n"
+            "Include:\n"
+            "- 🚦 Pull Request Verdict (Approve, Request Changes, Comment)\n"
+            "- 🛡️ Security Vulnerabilities & Remediation Steps\n"
+            "- 🧼 Code Smell & Complexity Warnings\n"
+            "- 💡 Senior Staff Architectural Recommendations\n"
+        )
+
+        try:
+            t0 = time.time()
+            resp = ollama.chat(model=use_model, messages=[{"role": "user", "content": prompt}], options={"temperature": 0.2})
+            return {
+                "status": "success",
+                "pr_comment": resp.get("message", {}).get("content", ""),
+                "duration_sec": round(time.time() - t0, 2),
+                "model": use_model
+            }
+        except Exception as e:
+            return {"status": "error", "pr_comment": f"Failed to synthesize PR review: {str(e)}"}
+
     def map_architecture(self, repo_path: str) -> Dict[str, Any]:
         """Extracts AST import structures and circular dependency graphs."""
         valid, msg, path_obj = self.validate_repo_path(repo_path)

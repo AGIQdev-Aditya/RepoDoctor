@@ -1,7 +1,12 @@
 """
-RepoDoctor Deterministic Diagnostic Tools (Optimized & Extended)
-Core static analysis, security auditing, circular dependency detection,
-embedding-cached semantic search, repo metric profiling, and test execution sandbox.
+RepoDoctor Deterministic Diagnostic Tools (Feature-Packed Engine)
+Includes:
+- Secret & Token Scanner (Stripe, AWS, GitHub, Google, HF, Slack, DB URI)
+- Dangerous Code Pattern Hunter (eval, exec, shell=True, SQL injection, pickle, weak crypto)
+- AST Complexity & Code Smell Detector (Cyclomatic complexity, long functions, bloated arguments)
+- AST Architecture & Circular Dependency Graph Generator
+- Embedding-Cached Semantic Vector Search (nomic-embed-text)
+- Isolated Pytest Sandbox Runner
 """
 
 import os
@@ -17,11 +22,10 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple, Set
 import numpy as np
 
-# Safe file extensions to analyze
 CODE_EXTENSIONS = {".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css", ".json", ".md", ".sh", ".yaml", ".yml"}
 IGNORE_DIRS = {".git", "venv", ".venv", "__pycache__", "node_modules", ".pytest_cache", ".idea", ".vscode", "dist", "build"}
 
-# Extended Production Secret Regex Patterns
+# Production Secret Regex Patterns
 SECRET_PATTERNS = [
     ("AWS Access Key", r"(?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}"),
     ("GitHub Personal Access Token", r"(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,255}"),
@@ -34,7 +38,7 @@ SECRET_PATTERNS = [
     ("Database URI with Password", r"(?:postgres|mysql|mongodb|redis):\/\/[a-zA-Z0-9_]+:[a-zA-Z0-9_!@#$%^&*]+@[a-zA-Z0-9.-]+"),
 ]
 
-# Extended Security & Code Health Vulnerabilities
+# Security Vulnerabilities
 VULNERABILITY_PATTERNS = [
     ("Arbitrary Code Execution (eval)", r"\beval\s*\(", "Critical", "Avoid eval(); use safe parsers like ast.literal_eval."),
     ("Arbitrary Code Execution (exec)", r"\bexec\s*\(", "Critical", "Avoid exec(); dynamic execution can lead to remote code execution."),
@@ -47,7 +51,6 @@ VULNERABILITY_PATTERNS = [
     ("Namespace Pollution (Wildcard Import)", r"from\s+[a-zA-Z0-9_.]+\s+import\s+\*", "Low", "Wildcard imports pollute global scope and break static analysis."),
 ]
 
-# In-memory Embedding Cache to make subsequent searches instantaneous
 _EMBEDDING_CACHE: Dict[str, Tuple[float, List[float]]] = {}
 
 
@@ -65,10 +68,7 @@ def _safe_resolve_path(repo_path: str, subpath: str = "") -> Path:
 
 
 def get_repo_overview(repo_path: str, **kwargs) -> Dict[str, Any]:
-    """
-    Computes a high-level architectural overview: language breakdown,
-    lines of code (LOC), comment density, and largest files.
-    """
+    """Calculates repository composition, line counts, comment density, and largest files."""
     base_dir = _safe_resolve_path(repo_path)
     ext_counts = {}
     ext_loc = {}
@@ -79,9 +79,7 @@ def get_repo_overview(repo_path: str, **kwargs) -> Dict[str, Any]:
     for root, dirs, files in os.walk(base_dir):
         dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and not d.startswith(".")]
         for file in files:
-            ext = os.path.splitext(file)[1].lower()
-            if not ext:
-                ext = "(no extension)"
+            ext = os.path.splitext(file)[1].lower() or "(no extension)"
             file_path = Path(root) / file
             
             ext_counts[ext] = ext_counts.get(ext, 0) + 1
@@ -92,8 +90,6 @@ def get_repo_overview(repo_path: str, **kwargs) -> Dict[str, Any]:
                     loc = len(lines)
                     total_loc += loc
                     ext_loc[ext] = ext_loc.get(ext, 0) + loc
-                    
-                    # Count comment lines in python/shell/js
                     comments = sum(1 for line in lines if line.strip().startswith(("#", "//", "/*", "*")))
                     total_comment_lines += comments
                     
@@ -105,7 +101,6 @@ def get_repo_overview(repo_path: str, **kwargs) -> Dict[str, Any]:
                 except Exception:
                     pass
 
-    # Sort largest files
     file_sizes.sort(key=lambda x: x["lines"], reverse=True)
     comment_ratio = round((total_comment_lines / max(1, total_loc)) * 100, 1)
 
@@ -123,10 +118,7 @@ def get_repo_overview(repo_path: str, **kwargs) -> Dict[str, Any]:
 
 
 def scan_security_and_secrets(repo_path: str, **kwargs) -> Dict[str, Any]:
-    """
-    Scans a repository for hardcoded secrets, API tokens, and dangerous code patterns.
-    Returns a structured security audit payload with letter grade and remediation steps.
-    """
+    """Scans repository files for hardcoded secrets and dangerous code patterns."""
     start_time = time.time()
     base_dir = _safe_resolve_path(repo_path)
     
@@ -157,16 +149,14 @@ def scan_security_and_secrets(repo_path: str, **kwargs) -> Dict[str, Any]:
 
             for line_idx, line in enumerate(lines, 1):
                 clean_line = line.strip()
-                # Skip comments and rule definition lines in the scanner itself
+                # Skip comments and pattern definition strings in scanner files
                 if clean_line.startswith(("#", "//", "/*", "*")):
                     continue
                 if 'r"\\b' in line or "r'\\b" in line or 'r"(?:' in line or "r'(?:" in line:
                     continue
 
-                # 1. Secret Scanning
                 for secret_name, pattern in SECRET_PATTERNS:
                     if re.search(pattern, line):
-                        # Mask sensitive characters
                         masked = clean_line[:30] + "... [REDACTED]"
                         findings_secrets.append({
                             "type": secret_name,
@@ -176,7 +166,6 @@ def scan_security_and_secrets(repo_path: str, **kwargs) -> Dict[str, Any]:
                             "severity": "Critical"
                         })
                 
-                # 2. Vulnerability Scanning
                 if ext in {".py", ".sh"}:
                     for vuln_name, pattern, severity, remedy in VULNERABILITY_PATTERNS:
                         if re.search(pattern, line):
@@ -189,7 +178,6 @@ def scan_security_and_secrets(repo_path: str, **kwargs) -> Dict[str, Any]:
                                 "remediation": remedy
                             })
 
-    # Weighted Scoring Formula
     penalty = (len(findings_secrets) * 25) + sum(
         15 if v["severity"] == "Critical" else 10 if v["severity"] == "High" else 5
         for v in findings_vulns
@@ -221,6 +209,77 @@ def scan_security_and_secrets(repo_path: str, **kwargs) -> Dict[str, Any]:
     }
 
 
+def analyze_code_complexity(repo_path: str, **kwargs) -> Dict[str, Any]:
+    """
+    Parses Python AST to compute Cyclomatic Complexity and pinpoint code smell hotspots:
+    - Overly complex functions (complexity > 8)
+    - Bloated functions (> 50 lines)
+    - Functions with excessive parameters (> 5 args)
+    """
+    base_dir = _safe_resolve_path(repo_path)
+    hotspots = []
+    total_functions = 0
+    total_complexity = 0
+
+    for root, dirs, files in os.walk(base_dir):
+        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and not d.startswith(".")]
+        for file in files:
+            if file.endswith(".py"):
+                file_path = Path(root) / file
+                rel_path = file_path.relative_to(base_dir).as_posix()
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        source = f.read()
+                    tree = ast.parse(source, filename=str(file_path))
+                except Exception:
+                    continue
+
+                for node in ast.walk(tree):
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        total_functions += 1
+                        # Calculate Cyclomatic Complexity by counting branching nodes
+                        complexity = 1
+                        for subnode in ast.walk(node):
+                            if isinstance(subnode, (ast.If, ast.While, ast.For, ast.AsyncFor, ast.ExceptHandler, ast.With, ast.AsyncWith)):
+                                complexity += 1
+                            elif isinstance(subnode, ast.BoolOp):
+                                complexity += len(subnode.values) - 1
+
+                        total_complexity += complexity
+                        fn_lines = (node.end_lineno - node.lineno + 1) if hasattr(node, "end_lineno") and node.end_lineno else 10
+                        arg_count = len(node.args.args)
+
+                        # Flag if complex or bloated
+                        issues = []
+                        if complexity > 8:
+                            issues.append(f"High Cyclomatic Complexity ({complexity})")
+                        if fn_lines > 55:
+                            issues.append(f"Bloated Function ({fn_lines} lines)")
+                        if arg_count > 5:
+                            issues.append(f"Excessive Arguments ({arg_count} params)")
+
+                        if issues:
+                            hotspots.append({
+                                "file": rel_path,
+                                "function": node.name,
+                                "line": node.lineno,
+                                "complexity": complexity,
+                                "lines_count": fn_lines,
+                                "issues": issues
+                            })
+
+    hotspots.sort(key=lambda x: x["complexity"], reverse=True)
+    avg_complexity = round(total_complexity / max(1, total_functions), 1)
+
+    return {
+        "status": "success",
+        "total_functions_analyzed": total_functions,
+        "average_complexity": avg_complexity,
+        "hotspots_count": len(hotspots),
+        "hotspots": hotspots[:10]
+    }
+
+
 def _detect_cycles(graph: Dict[str, Set[str]]) -> List[List[str]]:
     """Detect circular dependency cycles in module graph using DFS."""
     visited = {}
@@ -248,10 +307,7 @@ def _detect_cycles(graph: Dict[str, Set[str]]) -> List[List[str]]:
 
 
 def map_architecture_dependencies(repo_path: str, **kwargs) -> Dict[str, Any]:
-    """
-    Parses Python AST across all repository files to extract module imports,
-    detects circular dependencies, and generates an interactive Mermaid diagram.
-    """
+    """Extracts AST imports, detects circular dependencies, and renders Mermaid diagram."""
     base_dir = _safe_resolve_path(repo_path)
     python_files = {}
     
@@ -309,10 +365,8 @@ def map_architecture_dependencies(repo_path: str, **kwargs) -> Dict[str, Any]:
             "imports_count": len(imported_targets)
         })
 
-    # Detect Circular Dependencies
     cycles = _detect_cycles(graph)
 
-    # Build Mermaid syntax with cycle warnings
     clean_id = lambda name: name.replace(".", "_").replace("-", "_")
     mermaid_lines = ["flowchart TD"]
     
@@ -350,10 +404,7 @@ def _cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
 
 
 def search_codebase(repo_path: str, query: str, top_k: int = 3, **kwargs) -> Dict[str, Any]:
-    """
-    Performs semantic vector search across code files using Ollama's nomic-embed-text
-    with in-memory embedding caching for instant repeated queries.
-    """
+    """Semantic vector search across code files with in-memory caching."""
     import ollama
     global _EMBEDDING_CACHE
     
@@ -400,7 +451,6 @@ def search_codebase(repo_path: str, query: str, top_k: int = 3, **kwargs) -> Dic
     if not chunks:
         return {"status": "success", "query": query, "results": [], "message": "No code content to search."}
 
-    # Embed search query
     try:
         q_resp = ollama.embeddings(model="nomic-embed-text", prompt=query)
         q_vec = q_resp["embedding"]
@@ -412,7 +462,6 @@ def search_codebase(repo_path: str, query: str, top_k: int = 3, **kwargs) -> Dic
     
     for ch in eval_chunks:
         ch_id = ch["id"]
-        # Check cache validity
         if ch_id in _EMBEDDING_CACHE and _EMBEDDING_CACHE[ch_id][0] == ch["mtime"]:
             c_vec = _EMBEDDING_CACHE[ch_id][1]
         else:
@@ -446,10 +495,7 @@ def search_codebase(repo_path: str, query: str, top_k: int = 3, **kwargs) -> Dic
 
 
 def execute_test_sandbox(test_code: str, target_code: str = "", **kwargs) -> Dict[str, Any]:
-    """
-    Executes a synthesized unit test in an isolated temporary Python sandbox.
-    Returns execution status, pass/fail results, and execution duration.
-    """
+    """Executes a unit test safely in a temporary sandbox with pytest."""
     t0 = time.time()
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
@@ -486,6 +532,7 @@ def execute_test_sandbox(test_code: str, target_code: str = "", **kwargs) -> Dic
 TOOLS = {
     "get_repo_overview": get_repo_overview,
     "scan_security_and_secrets": scan_security_and_secrets,
+    "analyze_code_complexity": analyze_code_complexity,
     "map_architecture_dependencies": map_architecture_dependencies,
     "search_codebase": search_codebase,
     "execute_test_sandbox": execute_test_sandbox

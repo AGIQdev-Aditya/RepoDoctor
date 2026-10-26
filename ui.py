@@ -205,7 +205,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# SIDEBAR REPOSITORY SELECTOR
+# SIDEBAR REPOSITORY SELECTOR (Guaranteed Instant Switching)
 # -----------------------------------------------------------------------------
 st.sidebar.markdown("### 📁 Select Repository")
 
@@ -219,16 +219,37 @@ preset_options = {
     "Custom Directory...": "custom"
 }
 
+if "target_repo" not in st.session_state:
+    st.session_state["target_repo"] = repodoctor_path
+
+def update_repo_selection():
+    selected = st.session_state.get("preset_choice_radio")
+    if selected and selected != "Custom Directory...":
+        new_path = preset_options[selected]
+        st.session_state["target_repo"] = new_path
+        st.session_state["diag"] = engine.get_full_diagnosis(new_path)
+        st.session_state.pop("search_res", None)
+        st.session_state.pop("synth_test_code", None)
+        st.session_state.pop("test_exec_result", None)
+
 chosen_preset = st.sidebar.radio(
     "Target Codebase:",
     list(preset_options.keys()),
-    index=0
+    index=0,
+    key="preset_choice_radio",
+    on_change=update_repo_selection
 )
 
 if chosen_preset == "Custom Directory...":
-    target_repo = st.sidebar.text_input("Folder Path:", value=".")
+    custom_input = st.sidebar.text_input("Folder Path:", value=st.session_state.get("target_repo", "."))
+    if st.sidebar.button("📂 Load Custom Directory", use_container_width=True):
+        st.session_state["target_repo"] = custom_input
+        st.session_state["diag"] = engine.get_full_diagnosis(custom_input)
+        st.rerun()
+    target_repo = st.session_state["target_repo"]
 else:
     target_repo = preset_options[chosen_preset]
+    st.session_state["target_repo"] = target_repo
     st.sidebar.caption(f"Inspecting: `{Path(target_repo).name}/`")
 
 st.sidebar.markdown("### 🤖 Reasoning Engine")
@@ -245,11 +266,10 @@ if st.sidebar.button("🔄 Re-Scan Codebase", type="primary", use_container_widt
         st.session_state["diag"] = engine.get_full_diagnosis(target_repo)
         st.sidebar.success(f"Audit completed in {st.session_state['diag'].get('duration_sec', 0)}s!")
 
-# Load initial state or update if target changed
-if "current_target_repo" not in st.session_state or st.session_state["current_target_repo"] != target_repo:
-    st.session_state["current_target_repo"] = target_repo
-    with st.spinner("Initializing repository diagnostic..."):
-        st.session_state["diag"] = engine.get_full_diagnosis(target_repo)
+# Ensure diagnosis is loaded
+if "diag" not in st.session_state or st.session_state.get("current_scanned_path") != target_repo:
+    st.session_state["current_scanned_path"] = target_repo
+    st.session_state["diag"] = engine.get_full_diagnosis(target_repo)
 
 diag = st.session_state["diag"]
 overview = diag.get("overview", {})

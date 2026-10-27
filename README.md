@@ -96,25 +96,35 @@ flowchart TD
 
 ---
 
-## 🚀 Quickstart
+## 🚀 Quickstart & Setup Guide
 
-### 1. Prerequisites
-* **Linux** (Arch, Ubuntu, Debian, Fedora) or **macOS**
-* **Python 3.10+**
-* **[Ollama](https://ollama.com/)** running locally:
+Everything needed to run RepoDoctor locally on your laptop:
+
+### 1. Prerequisites & System Packages
+* **OS**: Linux (Arch, Ubuntu, Debian, Fedora) or macOS
+* **Python**: `3.10+` and `git`
+* **[Ollama](https://ollama.com/)** (Local LLM runner):
   ```bash
+  # Linux install:
+  curl -fsSL https://ollama.com/install.sh | sh
+
+  # Pull the two local models (zero cloud dependencies):
   ollama pull gemma4:e4b
   ollama pull nomic-embed-text
   ```
-* *(Optional for hardware sandboxing on Linux)*: `bubblewrap`
+* **Hardware Sandboxing** *(Optional for Linux isolated execution)*:
   ```bash
   # Arch Linux
   sudo pacman -S --needed bubblewrap
+
   # Ubuntu / Debian
   sudo apt-get install bubblewrap
   ```
+  *(Note: If `bubblewrap` is not installed, RepoDoctor automatically falls back to POSIX resource limits and process-group isolation).*
 
-### 2. Clone & Setup
+### 2. Installation
+Clone the repository and install the Python dependencies:
+
 ```bash
 git clone https://github.com/AGIQdev-Aditya/RepoDoctor.git
 cd RepoDoctor
@@ -124,11 +134,36 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Launch
+> **Python Libraries Included (`requirements.txt`)**:
+> * `ollama` (Official local Python SDK for model streaming)
+> * `rich` (Terminal formatting, ASCII scorecard banners & tables)
+> * `pytest` (Execution engine for synthesized test suites)
+> * `numpy` (Vector math for semantic cosine similarity search)
+> * `streamlit` (Optional legacy dashboard interface)
+
+### 3. Launching RepoDoctor
+
+#### Option A: 1-Click Launch (Recommended)
+`./run.sh` automatically checks Ollama, creates the venv if needed, and starts the Web Console:
 ```bash
-# 1-Click Launch (Starts Web Console at http://127.0.0.1:8502)
 ./run.sh
 ```
+👉 Open your browser at **`http://127.0.0.1:8502`**.
+
+#### Option B: Terminal CLI Mode (Sub-100ms)
+For terminal-first workflows, instant code checks, and CI/CD:
+```bash
+# Run instant diagnostic scorecard & vulnerability table
+python cli.py
+
+# Generate Gemma 4 Pull Request review markdown
+python cli.py --pr
+
+# Audit a specific target repository path
+python cli.py /path/to/any/repo
+```
+
+> ✈️ **100% Air-Gapped**: Once the two Ollama models are pulled, **you can completely disconnect your Wi-Fi / ethernet**—all AST parsing, secret entropy scanning, test synthesis, and vector search run 100% locally.
 
 ---
 
